@@ -7,6 +7,7 @@ from typing import Any
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from django.utils.dateparse import parse_datetime
 from pydantic import ValidationError
 from rest_framework import status
