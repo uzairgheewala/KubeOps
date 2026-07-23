@@ -1,0 +1,45 @@
+schema_version: kubeops.io/v1
+profile_id: local-development-shutdown.v1
+version: 1.0.0
+title: Local development graceful shutdown
+description: Quiesce application workloads before stopping a local cluster runtime.
+operation_type: shutdown
+environment_classes: [development, simulation]
+target_operational_profile_id: local-development-quiesced.v1
+default_policy_id: local-development-guarded.v1
+protected_invariant_ids: []
+stages:
+  - stage_id: applications
+    title: Stop tracked developer processes
+    timeout_seconds: 120
+    on_failure: pause
+    action_templates: []
+  - stage_id: cluster
+    title: Stop local cluster container
+    depends_on_stage_ids: [applications]
+    timeout_seconds: 120
+    on_failure: stop
+    action_templates:
+      - template_id: stop-kind-control-plane
+        action_type_id: docker.container.stop.v1
+        title: Stop Kind control-plane container
+        target_selector:
+          entity_type: kubernetes.node
+          name: kind-control-plane
+        parameters:
+          container: "${entity_name}"
+        optional: true
+    completion_conditions:
+      - condition_id: shutdown.kind_node_stopped
+        title: Kind control-plane node is no longer ready
+        predicate:
+          predicate_type: field_equals
+          entity_id: k8s/node/_cluster/kind-control-plane
+          path: observed_state.ready
+          value: false
+        temporal:
+          operator: immediate
+        level: resource_convergence
+        required: true
+metadata:
+  seed_profile: true

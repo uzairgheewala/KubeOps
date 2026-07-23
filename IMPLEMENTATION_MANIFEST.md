@@ -1,155 +1,112 @@
-# Release 0.3 implementation manifest
+# Release 0.4 implementation manifest
 
-Release 0.3 completes Epoch III of the phased plan: evidence-driven diagnosis,
-active read-only investigation, and scenario-based diagnostic evaluation.
+Release 0.4 implements the phased-plan checkpoint **Guarded local recovery**.
+It adds lifecycle planning, typed action authority, policy decisions, approvals,
+durable execution, rollback, semantic verification, and the operation workbench
+without weakening the Release 0.3 read-only diagnosis boundary.
 
-## Phase 9 — Evidence-intent and collector SDK
+## New core packages
 
-Implemented:
+```text
+packages/kubeops_core/kubeops_core/actions/
+packages/kubeops_core/kubeops_core/lifecycle/
+packages/kubeops_core/kubeops_core/policy/
+packages/kubeops_core/kubeops_core/execution/
+packages/kubeops_core/kubeops_core/verification/
+```
 
-- Evidence-intent canonical schema.
-- Collector-definition canonical schema.
-- Normalized evidence facts and collection receipts.
-- Collector catalog and registry integration.
-- Collector planning by required fact type, mode, risk, authority, cost, and
-  evidence budget.
-- Fixture/snapshot/topology-backed R0 collector handlers.
-- Explicit unsupported, missing-capability, and failed-collection semantics.
-- Diagnostic catalog API, CLI, and schema exposure.
+## New declarative catalogs
 
-Initial intent coverage includes:
+```text
+actions/
+lifecycle/local-development-startup.v1.yaml
+lifecycle/local-development-shutdown.v1.yaml
+policies/local-development-guarded.v1.yaml
+policies/production-guidance-only.v1.yaml
+```
 
-- endpoint path layering;
-- authentication versus authorization;
-- missing dependency or reference;
-- workload placement;
-- controller convergence;
-- Service endpoint/serviceability;
-- container initialization;
-- resource pressure;
-- declared/observed divergence;
-- idempotent cleanup state.
+## New or expanded canonical contracts
 
-## Phase 10 — Diagnosis engine v1
+- Lifecycle profiles, stages, and action templates.
+- Typed action definitions and instances.
+- Execution policies and decisions.
+- Recovery plans with embedded verification conditions.
+- Approval records.
+- Action receipts.
+- Execution checkpoints.
+- Operation timeline events.
+- Durable operation runs.
+- Operation-aware recovery certificates.
 
-Implemented:
+## Control-plane projection
 
-- Symptom derivation from violated and unknown profile invariants.
-- Generic invariant-family normalization.
-- Reusable causal templates.
-- Deterministic hypothesis generation.
-- Supporting and contradicting evidence sets.
-- Evidence-prediction and missing-fact tracking.
-- Parent-family fallback.
-- Generic operational-invariant fallback.
-- Multi-hypothesis ranking.
-- Causal edges.
-- Diagnosis certificates.
-- Explicit unknown and insufficient-evidence results.
+Migration `0004_release_04_guarded_lifecycle.py` creates:
 
-Initial causal-family coverage:
+- `LifecycleProfileRecord`
+- `ExecutionPolicyRecord`
+- `OperationRecord`
+- `OperationPolicyDecisionRecord`
+- `OperationApprovalRecord`
+- `ActionReceiptRecord`
+- `OperationTimelineRecord`
+- `ExecutionCheckpointRecord`
+- `OperationVerificationRecord`
+- `RecoveryCertificateRecord`
 
-- required entity absent;
-- invalid binding/reference;
-- endpoint unreachable;
-- authentication failure;
-- authorization failure;
-- controller convergence failure;
-- no feasible placement;
-- component not serviceable;
-- resource exhaustion;
-- state divergence;
-- idempotency violation;
-- observability gap;
-- generic operational-invariant violation.
+The canonical `OperationRun` payload remains authoritative; relational rows are
+query projections for the UI and API.
 
-## Phase 11 — Probe planner
+## Safety boundary
 
-Implemented:
+- `KUBEOPS_LIVE_EXECUTION_ENABLED` defaults to false.
+- The API selects dry-run or simulation unless live execution is explicitly
+  enabled and requested.
+- Every action is resolved through the catalog and executor registry.
+- Arbitrary shell strings are not an action type.
+- Policy decisions are persisted independently from plans and diagnoses.
+- R2+ actions can require checkpoints and approvals.
+- Fingerprint and capability mismatches deny execution.
+- Active rejections deny execution.
+- Expired and duplicate-person approvals do not satisfy quorum.
 
-- Probe intent construction from unresolved hypotheses.
-- Missing predicted-fact calculation.
-- Candidate collector capability matching.
-- Information-gain scoring.
-- Cost, authority, and redundancy weighting.
-- Evidence-budget enforcement.
-- Probe receipts.
-- Investigation refinement and next-probe replanning.
-- Read-only probe API, CLI, and UI execution.
+## Operation state path
 
-## Phase 12 — Scenario Lab v2 and diagnostic evaluation
+```text
+created
+  → awaiting_approval | authorized | blocked
+  → running
+  → verifying
+  → completed | failed
+  → rolling_back
+```
 
-Implemented:
+Pause, resume, and cancellation operate on the durable journal. Each action attempt emits an
+immutable receipt, and each significant transition emits a sequenced event.
 
-- Simulation-final-state evidence adapter.
-- Scenario-to-operational-profile assessment adapter.
-- Diagnostic expectation schema.
-- Case result and aggregate report schemas.
-- Precision, recall, confidence, status, and probe-count checks.
-- Observation-aware basis expectations.
-- Scenario diagnostic API and CLI.
-- Scenario Lab evaluation panel.
-- Diagnosis coverage endpoint for persisted incidents.
+## UI additions
 
-## Persistence
+```text
+ui/src/features/operations/OperationWorkbench.tsx
+```
 
-Added relational projections for:
+The workbench supports plan preview, creation, approval, execution, pause,
+resume, cancellation, rollback, verification, certificate inspection, timeline replay, and
+artifact lineage.
 
-- incidents;
-- evidence facts;
-- hypotheses;
-- probe runs;
-- incident timeline entries;
-- diagnosis certificates.
+## Test additions
 
-The canonical incident payload remains authoritative while relational
-projections support querying and UI workflows.
+`tests/unit/test_release_04_lifecycle.py` covers:
 
-## Artifact contract
+- dependency-aware plan compilation;
+- fingerprint, capability, approval, and checkpoint policy behavior;
+- distinct, unexpired approvals and active rejections;
+- lifecycle DAG rejection;
+- dry-run journaling;
+- simulation idempotency;
+- semantic verification;
+- failure and rollback receipts;
+- terminal-Job cleanup safety;
+- deterministic operation artifacts.
 
-Added immutable artifact types:
-
-- `incident_investigation`
-- `evidence_set`
-- `hypothesis_set`
-- `causal_graph`
-- `incident_timeline`
-- `probe_history`
-- `probe_plan`
-- `diagnosis_certificate`
-- `incident_manifest`
-
-## UI implementation
-
-Added:
-
-- Incidents primary navigation.
-- Snapshot/profile incident-opening flow.
-- Incident summary metrics.
-- Evidence table with authority and contradiction context.
-- Hypothesis tree/cards with support and missing predictions.
-- Probe recommendations and execution.
-- Timeline and causal views.
-- Diagnosis certificate and artifact exploration.
-- Scenario Lab v2 diagnostic evaluation.
-
-## Compatibility retained
-
-- Canonical scenario IR and family compiler.
-- Composition compiler.
-- Deterministic simulator.
-- Environment registry and access validation.
-- Discovery, sanitization, snapshots, fixture replay, and structural diff.
-- Topology compiler and health profiles.
-- Existing REST, CLI, and web workbenches.
-
-## Explicit exclusions
-
-- Mutating probes.
-- Recovery planning.
-- Typed action execution.
-- Approval workflows.
-- Startup/shutdown orchestration.
-- Rollback.
-- Recovery verification.
-- Autonomous repair.
+The Django integration suite adds API-level lifecycle planning, operation,
+approval, run, certificate, and live-disable tests.

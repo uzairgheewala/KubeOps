@@ -1,353 +1,286 @@
-# KubeOps Release 0.3
+# KubeOps Release 0.4
 
-KubeOps is a typed operational reasoning platform for Kubernetes environments.
-Release 0.3 turns the Release 0.2 read-only environment model into an
-**evidence-driven diagnosis workbench** while retaining zero mutation authority.
+KubeOps is a typed, evidence-driven Kubernetes operations runtime. Release 0.4
+adds the first guarded mutation boundary on top of the read-only topology,
+health, incident, and diagnosis foundations from Releases 0.1–0.3.
 
-The release can open an incident from an immutable environment snapshot,
-derive normalized symptoms from violated operational contracts, plan bounded
-read-only evidence collection, rank reusable causal hypotheses, retain
-supporting and contradictory facts, recommend discriminating probes, refine an
-investigation after each probe, and seal the current conclusion as a diagnosis
-certificate.
+The release can compile an environment objective into a dependency-aware
+lifecycle plan, evaluate each typed action under an independent execution
+policy, persist approvals and checkpoints, execute through an explicitly
+selected adapter, resume interrupted work, attempt bounded rollback, and seal
+the result only after semantic verification.
 
-Release 0.3 also connects this same diagnostic engine to the Scenario Lab. A
-scenario family can be compiled, simulated, diagnosed, and evaluated against an
-observation-aware expectation without introducing a separate test-only
-reasoning path.
+Release 0.4 does **not** enable unrestricted production remediation. Live
+execution is disabled by default at the control-plane boundary. Dry-run and
+simulation operations are deliberately certified as `partially_recovered`,
+not as authoritative live recoveries.
 
-## Release 0.3 capabilities
+## Release 0.4 capabilities
 
-- Versioned canonical models for:
-  - evidence intents;
-  - collector definitions and collection plans;
-  - normalized evidence facts and collector receipts;
-  - symptoms;
-  - reusable causal templates and causal edges;
-  - ranked hypotheses with support, contradiction, predictions, and unknowns;
-  - probe intents, plans, and executions;
-  - incident timelines and investigations;
-  - diagnosis certificates;
-  - diagnostic expectations, case results, and evaluation reports.
-- A read-only diagnostic catalog containing evidence intents, collectors, and
-  causal templates.
-- Capability-aware collector planning based on unresolved semantic questions,
-  available sources, evidence budgets, authority, cost, and redundancy.
-- Deterministic hypothesis generation with:
-  - parent-family fallback;
-  - generic invariant-violation fallback;
-  - contradiction preservation;
-  - multiple simultaneous hypotheses;
-  - explicit unsupported or insufficient-evidence results.
-- Active probe planning that selects only collectors capable of supplying
-  currently missing predicted fact types.
-- Durable incident, evidence, hypothesis, probe, timeline, certificate, and
-  artifact projections in the Django control plane.
-- CLI flows for diagnostic catalog inspection, scenario diagnostic evaluation,
-  incident opening, incident inspection, and probe execution.
-- An interactive incident workbench for evidence, hypotheses, causal structure,
-  probes, timeline, certificate, and artifact lineage.
-- Scenario Lab v2 diagnostic evaluation with predicted-family and
-  precision/recall feedback.
-- A declared observation-aware diagnostic basis at
-  `diagnostics/evaluation/basis-expectations.v1.yaml`.
-- Complete preservation of Release 0.1 simulation and Release 0.2 read-only
-  environment-intelligence functionality.
+### Lifecycle profiles
 
-## Authority boundary
+Lifecycle profiles describe goal-directed transitions rather than shell-script
+sequences. The initial profiles are:
 
-Release 0.3 remains read-only.
+- `local-development-startup.v1`
+- `local-development-shutdown.v1`
 
-Every built-in collector is classified `R0`. The system can inspect snapshots,
-topology, resources, relationships, historical state, and already-collected
-facts. It cannot create, patch, delete, restart, drain, scale, or otherwise
-mutate Kubernetes or host state.
+A profile declares stages, stage dependencies, typed action templates,
+selection rules, verification conditions, protected invariants, and a default
+execution policy. Stage and action-template graphs are validated as acyclic.
+
+### Typed action catalog
+
+The built-in action catalog includes bounded definitions for:
+
+- waiting for an explicit condition;
+- starting or stopping an allowlisted local process;
+- starting or stopping a Docker container;
+- restarting an allowlisted host service;
+- restarting a selected Kubernetes workload;
+- deleting a terminal Kubernetes Job;
+- refreshing an Argo CD application;
+- ensuring a local port-forward.
+
+Every action definition declares its executor, supported modes, required
+capabilities, default risk, timeout, retry limit, expected effects, possible
+side effects, and rollback action where available.
+
+### Independent safety policy
+
+Policy evaluation is separate from diagnosis and planning. A confident
+diagnosis never grants authority by itself.
+
+Policies can constrain:
+
+- environment class;
+- allowed and denied action types;
+- allowed risk classes;
+- target patterns;
+- required capabilities;
+- mutation budgets;
+- target fingerprints;
+- checkpoint requirements;
+- approval counts by risk class;
+- break-glass behavior.
+
+Approvals are action- or operation-scoped. Expired approvals do not count,
+multiple approvals from one identity count once, and an active explicit
+rejection blocks execution.
+
+### Durable operation runtime
+
+An `OperationRun` persists:
+
+- the immutable recovery plan;
+- policy decisions;
+- approvals;
+- action receipts;
+- checkpoints;
+- verification results;
+- recovery or rollback certificate;
+- append-oriented timeline events.
+
+The file-backed journal uses atomic replacement and supports pause, resume,
+idempotency suppression, bounded retries, rollback attempts, and reconstruction
+after process restart.
+
+### Verification and certification
+
+Command success is not recovery. Verification operates over the canonical
+world and relationship graph and can evaluate:
+
+- target invariant restoration;
+- protected-invariant preservation;
+- semantic application health;
+- side-effect guards.
+
+Certificate trust is mode-aware:
+
+- dry run: `partially_recovered`;
+- simulation: `partially_recovered`;
+- live execution with passing semantic verification: `recovered`;
+- failed verification: `recovery_failed`;
+- completed rollback: `rollback_completed`.
+
+### Operation workbench
+
+The React workbench adds an **Operations** surface with:
+
+- environment, lifecycle-profile, policy, and mode selection;
+- dependency-aware plan preview;
+- stage/action DAG inspection;
+- independent policy-decision review;
+- operation- and action-level approval controls;
+- dry-run and guarded-simulation execution;
+- pause, resume, and rollback controls;
+- action receipts and checkpoints;
+- verification results and certificates;
+- timeline replay;
+- immutable artifact lineage.
+
+## Repository layering
 
 ```text
-Immutable environment snapshot
-        ↓
-Operational-profile assessment
-        ↓
-Violated invariants
-        ↓
-Normalized symptoms
-        ↓
-Evidence intents
-        ↓
-Capability-aware R0 collection plan
-        ↓
-Evidence facts + contradictions
-        ↓
-Causal templates and ranked hypotheses
-        ↓
-Discriminating probe plan
-        ↓
-Refined investigation
-        ↓
-Diagnosis certificate + immutable incident artifacts
+packages/kubeops_core/
+  models/           canonical lifecycle, policy, operation, and certificate IR
+  actions/          typed action catalog
+  lifecycle/        profile registry and plan compiler
+  policy/           independent authorization engine
+  execution/        adapters, durable journal, operation state machine
+  verification/     semantic and protected-invariant verification
+
+control_plane/
+  Django persistence, APIs, settings, and live-authority gate
+
+ui/
+  lifecycle and guarded-operation workbench
+
+lifecycle/           declarative lifecycle profiles
+policies/            declarative execution policies
+operations/          runtime journal; ignored by Git
 ```
 
-Diagnosis confidence never grants mutation authority. Typed actions, policy,
-approval, and durable execution remain Release 0.4 concerns.
+## Applying this delta
 
-See:
-
-- [Release 0.3 architecture](docs/architecture-release-03.md)
-- [ADR 0003: read-only diagnosis boundary](docs/adr/0003-read-only-diagnosis-boundary.md)
-- [Release 0.3 implementation manifest](IMPLEMENTATION_MANIFEST.md)
-- [Release 0.3 validation record](VALIDATION.md)
-
-## Applying the delta package
-
-The distributed Release 0.3 archive contains only files added or modified since
-Release 0.2. Extract it over the root of a complete Release 0.2 checkout while
-preserving paths and replacing changed files.
-
-No Release 0.2 paths are intentionally deleted.
-
-## Quick start
-
-### Docker
+The Release 0.4 package contains only files added or modified since Release
+0.3. Extract it over a repository containing Release 0.1 plus the Release 0.2
+and 0.3 deltas, preserving repository-relative paths.
 
 ```bash
-cp .env.example .env
-docker compose up --build
+unzip kubeops-release-0.4-delta.zip -d /path/to/kubeops
+cd /path/to/kubeops
 ```
 
-Open:
+Then install or refresh dependencies and apply the new migration.
 
-- UI: `http://localhost:5173`
-- API: `http://localhost:8000/api/v1/system/status`
+## Local bootstrap
 
-### Local bootstrap
-
-Linux/macOS:
+### Linux/macOS
 
 ```bash
 ./scripts/bootstrap.sh
 ./scripts/dev.sh
 ```
 
-Windows PowerShell:
+### Windows PowerShell
 
 ```powershell
 .\scripts\bootstrap.ps1
 .\scripts\dev.ps1
 ```
 
-The bootstrap applies migrations through Release 0.3 and retains the existing
-scenario catalog, operational profiles, and fixture-backed demonstration
-environment.
-
-## Fixture-backed diagnosis walkthrough
-
-Collect the degraded fixture:
+### Docker Compose
 
 ```bash
-./scripts/kubeops.sh snapshot collect \
-  environments/demo-kind-fixture.v1.yaml \
+docker compose up --build
+```
+
+The UI is served at `http://localhost:5173` and the API at
+`http://localhost:8000/api/v1`.
+
+## Safety configuration
+
+The default environment file contains:
+
+```text
+KUBEOPS_LIVE_EXECUTION_ENABLED=0
+```
+
+Keep this disabled while using the Release 0.4 workbench. The API defaults to
+dry-run or simulation adapters. Enabling live execution only removes the
+server-wide denial; individual actions must still pass target-fingerprint,
+capability, policy, approval, checkpoint, and executor checks.
+
+The live boundary is intentionally suitable for controlled local development
+and disposable test environments, not unattended production repair.
+
+## CLI examples
+
+Collect or load a Release 0.2 snapshot:
+
+```bash
+kubeops snapshot collect environments/demo-kind-fixture.v1.yaml \
   --method-id recorded-degraded \
-  --output /tmp/kubeops-degraded.json
+  --profile local-development-usable.v1 \
+  --output /tmp/kubeops-snapshot.json
 ```
 
-Open a read-only investigation:
+Compile a startup plan:
 
 ```bash
-./scripts/kubeops.sh incident open \
-  /tmp/kubeops-degraded.json \
-  local-development-usable.v1 \
-  --output /tmp/kubeops-incident.json \
-  --artifacts /tmp/kubeops-artifacts
+kubeops lifecycle plan local-development-startup.v1 \
+  /tmp/kubeops-snapshot.json \
+  --mode guarded_execution \
+  --policy-id local-development-guarded.v1 \
+  --output /tmp/kubeops-plan.json
 ```
 
-Inspect ranked hypotheses and recommended probes:
+Create and approve an operation:
 
 ```bash
-./scripts/kubeops.sh incident show /tmp/kubeops-incident.json
+kubeops operation create /tmp/kubeops-plan.json demo-kind-fixture \
+  --mode guarded_execution
+
+kubeops operation approve <operation-id> operator-1
+# Optional before execution:
+# kubeops operation cancel <operation-id> --reason "No longer required"
 ```
 
-Run one recommended probe using its ID from the incident:
+Run using the non-live simulation adapter:
 
 ```bash
-./scripts/kubeops.sh incident probe \
-  /tmp/kubeops-incident.json \
-  /tmp/kubeops-degraded.json \
-  local-development-usable.v1 \
-  <probe-id> \
-  --output /tmp/kubeops-incident-refined.json \
-  --artifacts /tmp/kubeops-artifacts
+kubeops operation run <operation-id> /tmp/kubeops-snapshot.json \
+  local-development-guarded.v1 \
+  --adapter-mode simulation \
+  --capability argocd.application.refresh \
+  --capability kubernetes.workload.restart \
+  --artifacts artifacts
 ```
 
-The probe does not mutate the fixture or cluster. It gathers additional facts,
-re-ranks the hypotheses, updates the causal graph, regenerates the next probe
-plan, and produces a new immutable artifact lineage.
-
-## Diagnostic catalog
-
-Inspect all built-in evidence intents, collectors, and causal templates:
-
-```bash
-./scripts/kubeops.sh diagnostic catalog
-./scripts/kubeops.sh diagnostic catalog --category intent
-./scripts/kubeops.sh diagnostic catalog --category collector
-./scripts/kubeops.sh diagnostic catalog --category template
-```
-
-The initial catalog contains generic support for:
-
-- required entity absent;
-- invalid references or bindings;
-- dependency endpoint unreachable;
-- authentication failure;
-- authorization failure;
-- controller convergence failure;
-- no feasible workload placement;
-- component not serviceable;
-- resource exhaustion;
-- declared/observed state divergence;
-- idempotency violation;
-- observability gaps;
-- generic operational-invariant violations.
-
-These are reusable causal families, not error-string handlers.
-
-## Scenario diagnostic evaluation
-
-The Release 0.1 simulator and Release 0.3 diagnosis engine are connected through
-one canonical evaluation path:
-
-```bash
-./scripts/kubeops.sh diagnostic evaluate \
-  dependency.authentication_failure.v1 \
-  --expected-family dependency.authentication_failure \
-  --maximum-probe-count 8 \
-  --output /tmp/auth-diagnostic-case.json
-```
-
-The result contains:
-
-- predicted diagnostic families;
-- certificate status;
-- recommended probe count;
-- expectation failures;
-- precision and recall for the declared expectation;
-- a complete generated `IncidentInvestigation`.
-
-The web Scenario Lab exposes the same operation through **Run diagnostic
-evaluation**.
-
-## Observation-aware expectations
-
-A concrete cause is not always observable from a given evidence profile.
-Release 0.3 therefore does not require a hidden root cause to be guessed.
-
-For example:
-
-- Full authentication evidence should identify
-  `dependency.authentication_failure`.
-- Consumer-only evidence may correctly stop at `component.not_serviceable` and
-  recommend credential probes.
-- A generic inherited disturbance that produces no concrete violation may
-  correctly terminate as `unknown_semantics`.
-
-The included diagnostic basis encodes those distinctions explicitly rather than
-marking every non-leaf result as a failure.
-
-## Web workbench
-
-### Incidents
-
-The incident workspace supports:
-
-- opening an investigation from an environment snapshot and operational profile;
-- selecting persisted incidents;
-- viewing initial symptom, impact, violated contracts, and certificate status;
-- comparing root, supported, contradicted, and unresolved hypotheses;
-- examining supporting and contradicting evidence;
-- inspecting the causal edge graph;
-- running recommended R0 probes;
-- reviewing probe history and evidence deltas;
-- following the investigation timeline;
-- inspecting the diagnosis certificate;
-- browsing the immutable incident artifact chain.
-
-### Scenario Lab v2
-
-The Scenario Lab retains topology, truth/observation switching, invariant
-playback, event history, and run artifacts. Release 0.3 adds diagnostic
-evaluation against a scenario-family expectation and exposes:
-
-- predicted causal families;
-- certificate status;
-- recommended probe count;
-- precision and recall;
-- the generated incident and diagnosis certificate.
-
-### Existing Release 0.2 surfaces
-
-The environment registry, inventory, topology explorer, health matrix, snapshot
-history, structural diff, and fixture export remain available.
-
-## REST API additions
+## API additions
 
 ```text
-GET  /api/v1/diagnostic-catalog
-GET  /api/v1/diagnosis/coverage
+GET  /api/v1/action-catalog
+GET  /api/v1/lifecycle-profiles
+GET  /api/v1/lifecycle-profiles/{profile_id}
+GET  /api/v1/execution-policies
+POST /api/v1/snapshots/{snapshot_id}/lifecycle-plan
 
-GET  /api/v1/incidents
-POST /api/v1/snapshots/{snapshot_id}/incidents
-GET  /api/v1/incidents/{incident_id}
-GET  /api/v1/incidents/{incident_id}/certificate
-POST /api/v1/incidents/{incident_id}/probes/{probe_id}/run
-
-POST /api/v1/scenarios/diagnose
+GET  /api/v1/operations
+POST /api/v1/operations
+GET  /api/v1/operations/{operation_id}
+POST /api/v1/operations/{operation_id}/approve
+POST /api/v1/operations/{operation_id}/run
+POST /api/v1/operations/{operation_id}/pause
+POST /api/v1/operations/{operation_id}/cancel
+POST /api/v1/operations/{operation_id}/resume
+POST /api/v1/operations/{operation_id}/rollback
+GET  /api/v1/operations/{operation_id}/certificate
 ```
 
-`POST /api/v1/scenarios/diagnose` compiles and simulates a scenario, evaluates
-the diagnostic pipeline against an optional `DiagnosticExpectation`, persists
-the normal simulation artifacts, and returns a `DiagnosticCaseResult` with the
-generated investigation.
+## Testing
 
-## Incident artifact bundle
-
-Every persisted investigation emits a content-addressed bundle containing:
-
-```text
-incident_investigation
-evidence_set
-hypothesis_set
-causal_graph
-incident_timeline
-probe_history
-probe_plan
-diagnosis_certificate
-incident_manifest
+```bash
+make test-python
+make test-ui
 ```
 
-The manifest records derivation links so the certificate can be traced back to
-the evidence, hypotheses, and probes that produced it.
+The Python suite covers all retained Release 0.1–0.3 behavior and the Release
+0.4 planner, policy, execution, idempotency, rollback, artifact, and
+verification contracts.
 
-## Compatibility
+## Documentation
 
-- Release 0.1 scenario, composition, simulator, schema, and artifact contracts
-  remain supported.
-- Release 0.2 environment, discovery, topology, health, snapshot, diff, fixture,
-  API, CLI, and UI contracts remain supported.
-- No live mutation endpoint or executor is introduced.
-- New diagnostic models are versioned canonical IR objects rather than
-  Django-only payloads.
+- [Release 0.4 architecture](docs/architecture-release-04.md)
+- [Guarded mutation authority ADR](docs/adr/0004-guarded-mutation-authority.md)
+- [Release notes](RELEASE_NOTES.md)
+- [Implementation manifest](IMPLEMENTATION_MANIFEST.md)
+- [Validation record](VALIDATION.md)
 
-## Next release boundary
+## Next boundary
 
-Release 0.4 will add lifecycle planning and guarded execution foundations:
-
-- startup and shutdown operational-profile planning;
-- typed actions;
-- risk classes and policy decisions;
-- approval gates;
-- durable, idempotent operation execution;
-- low-risk local adapters;
-- recovery verification and certificates.
-
-Those capabilities will consume the Release 0.3 diagnosis certificates rather
-than bypassing them.
+Release 0.5 should extract provider and component behavior into independently
+versioned knowledge packs, add live disposable-cluster scenario validation,
+expand action and verification adapters, measure semantic support coverage, and
+promote resolved incidents into regression-tested operational knowledge.

@@ -10,6 +10,12 @@ import type {
   IncidentSummary,
   OperationalProfileAssessment,
   OperationalProfileSpec,
+  ActionTypeDefinition,
+  ExecutionPolicy,
+  LifecycleProfile,
+  OperationRun,
+  OperationSummary,
+  RecoveryPlan,
   RegistrySnapshot,
   ScenarioFamily,
   ScenarioInstance,
@@ -95,5 +101,27 @@ export const api = {
     request<IncidentInvestigation>(`/incidents/${encodeURIComponent(incidentId)}/probes/${encodeURIComponent(probeId)}/run`, {
       method: "POST", body: JSON.stringify(payload)
     }),
-  diagnosisCoverage: () => request<Record<string, unknown>>("/diagnosis/coverage")
+  diagnosisCoverage: () => request<Record<string, unknown>>("/diagnosis/coverage"),
+  actionCatalog: () => request<ActionTypeDefinition[]>("/action-catalog"),
+  lifecycleProfiles: () => request<LifecycleProfile[]>("/lifecycle-profiles"),
+  executionPolicies: () => request<ExecutionPolicy[]>("/execution-policies"),
+  planLifecycle: (snapshotId: string, payload: Record<string, unknown>) =>
+    request<RecoveryPlan>(`/snapshots/${encodeURIComponent(snapshotId)}/lifecycle/plan`, { method: "POST", body: JSON.stringify(payload) }),
+  operations: (environmentId?: string) =>
+    request<OperationSummary[]>(`/operations${environmentId ? `?environment_id=${encodeURIComponent(environmentId)}` : ""}`),
+  operation: (operationId: string) => request<OperationRun>(`/operations/${encodeURIComponent(operationId)}`),
+  createOperation: (payload: Record<string, unknown>) =>
+    request<OperationRun>("/operations", { method: "POST", body: JSON.stringify(payload) }),
+  approveOperation: (operationId: string, payload: Record<string, unknown>) =>
+    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/approvals`, { method: "POST", body: JSON.stringify(payload) }),
+  runOperation: (operationId: string, payload: Record<string, unknown> = {}) =>
+    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/run`, { method: "POST", body: JSON.stringify(payload) }),
+  pauseOperation: (operationId: string, reason: string) =>
+    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/pause`, { method: "POST", body: JSON.stringify({ reason }) }),
+  cancelOperation: (operationId: string, reason: string) =>
+    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/cancel`, { method: "POST", body: JSON.stringify({ reason }) }),
+  resumeOperation: (operationId: string, payload: Record<string, unknown> = {}) =>
+    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/resume`, { method: "POST", body: JSON.stringify(payload) }),
+  rollbackOperation: (operationId: string, payload: Record<string, unknown> = {}) =>
+    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/rollback`, { method: "POST", body: JSON.stringify(payload) })
 };

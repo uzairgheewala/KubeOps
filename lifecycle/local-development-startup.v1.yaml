@@ -1,0 +1,72 @@
+schema_version: kubeops.io/v1
+profile_id: local-development-startup.v1
+version: 1.0.0
+title: Local development startup
+description: Establish a usable local environment from a partially running state.
+operation_type: startup
+environment_classes: [development, simulation]
+target_operational_profile_id: local-development-usable.v1
+default_policy_id: local-development-guarded.v1
+protected_invariant_ids: []
+stages:
+  - stage_id: platform
+    title: Platform convergence
+    timeout_seconds: 180
+    allow_parallel_actions: false
+    on_failure: pause
+    action_templates:
+      - template_id: refresh-argocd
+        action_type_id: argocd.application.refresh.v1
+        title: Refresh Argo CD application state
+        target_selector:
+          entity_type: kubernetes.deployment
+          namespace: demo
+          name: web
+        parameters:
+          namespace: "${namespace}"
+          name: "${entity_name}"
+        optional: true
+  - stage_id: workloads
+    title: Workload recovery
+    depends_on_stage_ids: [platform]
+    timeout_seconds: 300
+    on_failure: rollback
+    action_templates:
+      - template_id: restart-unhealthy-workload
+        action_type_id: kubernetes.workload.rollout_restart.v1
+        title: Restart selected workload
+        target_selector:
+          entity_type: kubernetes.deployment
+          namespace: demo
+          name: web
+        parameters:
+          kind: deployment
+          name: "${entity_name}"
+          namespace: "${namespace}"
+        risk_override: R2
+    completion_conditions:
+      - condition_id: startup.web.replicas_ready
+        title: Web deployment has all desired replicas ready
+        predicate:
+          predicate_type: fields_equal
+          left_entity_id: k8s/deployment/demo/web
+          left_path: observed_state.ready_replicas
+          right_entity_id: k8s/deployment/demo/web
+          right_path: observed_state.desired_replicas
+        temporal:
+          operator: immediate
+        level: semantic_health
+        required: true
+      - condition_id: startup.demo_namespace_preserved
+        title: Demo namespace remains present
+        predicate:
+          predicate_type: field_equals
+          entity_id: k8s/namespace/_cluster/demo
+          path: observed_state.exists
+          value: true
+        temporal:
+          operator: immediate
+        level: side_effect_guard
+        required: true
+metadata:
+  seed_profile: true

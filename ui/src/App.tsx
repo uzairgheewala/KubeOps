@@ -4,12 +4,13 @@ import { Badge } from "./components/Badge";
 import { CompositionLab } from "./features/CompositionLab";
 import { EnvironmentWorkbench } from "./features/environments/EnvironmentWorkbench";
 import { IncidentWorkbench } from "./features/incidents/IncidentWorkbench";
+import { OperationWorkbench } from "./features/operations/OperationWorkbench";
 import { ScenarioLab } from "./features/ScenarioLab";
 import { SchemaInspector } from "./features/SchemaInspector";
 import type { ScenarioFamily, SystemStatus } from "./types";
 import "./styles.css";
 
-type View = "environments" | "incidents" | "lab" | "composition" | "schemas";
+type View = "environments" | "incidents" | "operations" | "lab" | "composition" | "schemas";
 
 export default function App() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -39,6 +40,7 @@ export default function App() {
         <nav className="main-nav" aria-label="Primary">
           <button type="button" className={view === "environments" ? "active" : ""} onClick={() => setView("environments")}>Environments</button>
           <button type="button" className={view === "incidents" ? "active" : ""} onClick={() => setView("incidents")}>Incidents</button>
+          <button type="button" className={view === "operations" ? "active" : ""} onClick={() => setView("operations")}>Operations</button>
           <button type="button" className={view === "lab" ? "active" : ""} onClick={() => setView("lab")}>Scenario Lab</button>
           <button type="button" className={view === "composition" ? "active" : ""} onClick={() => setView("composition")}>Composition Lab</button>
           <button type="button" className={view === "schemas" ? "active" : ""} onClick={() => setView("schemas")}>Canonical IR</button>
@@ -46,7 +48,7 @@ export default function App() {
         <div className="header-status">
           <Badge tone={status?.status === "ok" ? "positive" : "warning"}>{status?.status ?? "connecting"}</Badge>
           <Badge tone="accent">{status?.mode ?? "read only"}</Badge>
-          <span>Release {status?.release ?? "0.3.0"}</span>
+          <span>Release {status?.release ?? "0.4.0"}</span>
           {status?.environment_count !== undefined && <span>{status.environment_count} environments</span>}
           {status?.incident_count !== undefined && <span>{status.incident_count} incidents</span>}
         </div>
@@ -64,6 +66,8 @@ export default function App() {
         <EnvironmentWorkbench />
       ) : view === "incidents" ? (
         <IncidentWorkbench />
+      ) : view === "operations" ? (
+        <OperationWorkbench />
       ) : view === "lab" ? (
         <ScenarioLab families={families} />
       ) : view === "composition" ? (

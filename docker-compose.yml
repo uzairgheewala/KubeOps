@@ -26,10 +26,15 @@ services:
       KUBEOPS_SCENARIO_DIR: /workspace/scenarios
       KUBEOPS_PROFILE_DIR: /workspace/profiles
       KUBEOPS_ARTIFACT_DIR: /workspace/artifacts
+      KUBEOPS_LIFECYCLE_DIR: /workspace/lifecycle
+      KUBEOPS_POLICY_DIR: /workspace/policies
+      KUBEOPS_OPERATION_DIR: /workspace/operations
+      KUBEOPS_LIVE_EXECUTION_ENABLED: "0"
     command: >-
       sh -c "python control_plane/manage.py migrate &&
              python control_plane/manage.py seed_release_01 &&
              python control_plane/manage.py seed_release_02 &&
+             python control_plane/manage.py seed_release_04 &&
              python control_plane/manage.py runserver 0.0.0.0:8000"
     ports:
       - "8000:8000"
@@ -38,6 +43,7 @@ services:
         condition: service_healthy
     volumes:
       - ./artifacts:/workspace/artifacts
+      - ./operations:/workspace/operations
 
   ui:
     build:

@@ -10,20 +10,25 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
-from kubeops_core.artifacts import FileArtifactStore, build_incident_artifacts, build_run_artifacts
+from kubeops_core.artifacts import FileArtifactStore, build_incident_artifacts, build_operation_artifacts, build_run_artifacts
+from kubeops_core.actions import build_builtin_action_catalog
+from kubeops_core.execution import ExecutionContext, FileOperationStore, OperationRuntime, RuntimeContext, build_default_executor_registry
+from kubeops_core.lifecycle import LifecyclePlanner, LifecycleProfileRegistry
+from kubeops_core.policy import ExecutionPolicyRegistry, PolicyContext
+from kubeops_core.util import utc_now_iso
 from kubeops_core.models.composition import ScenarioComposition
 from kubeops_core.discovery import diff_snapshots
 from kubeops_core.diagnosis import InvestigationService, ScenarioDiagnosisEvaluator, build_builtin_diagnostic_catalog
 from kubeops_core.environments import EnvironmentIntelligenceService
 from kubeops_core.health import HealthAssessmentEngine
-from kubeops_core.models import DiagnosticExpectation, EnvironmentDefinition, EnvironmentSnapshot, IncidentInvestigation
+from kubeops_core.models import ApprovalRecord, DiagnosticExpectation, EnvironmentDefinition, EnvironmentSnapshot, IncidentInvestigation, OperationRun, RecoveryPlan
 from kubeops_core.profiles import OperationalProfileRegistry
 from kubeops_core.models.registry import RegistryEntry
 from kubeops_core.registry import ScenarioFamilyRegistry, build_builtin_catalog
 from kubeops_core.scenarios import ScenarioCompileError, ScenarioCompiler, ScenarioComposer
 from kubeops_core.simulator import SimulationEngine
 
-app = typer.Typer(no_args_is_help=True, help="KubeOps Release 0.3 read-only diagnosis, intelligence, and scenario CLI.")
+app = typer.Typer(no_args_is_help=True, help="KubeOps Release 0.4 guarded lifecycle, recovery, diagnosis, and scenario CLI.")
 family_app = typer.Typer(no_args_is_help=True, help="Inspect scenario families.")
 scenario_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenarios.")
 composition_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenario compositions.")
@@ -33,6 +38,9 @@ snapshot_app = typer.Typer(no_args_is_help=True, help="Collect, inspect, and com
 profile_app = typer.Typer(no_args_is_help=True, help="Inspect and evaluate operational profiles.")
 incident_app = typer.Typer(no_args_is_help=True, help="Open and refine read-only incident investigations.")
 diagnostic_app = typer.Typer(no_args_is_help=True, help="Inspect diagnostic intents, collectors, and causal templates.")
+lifecycle_app = typer.Typer(no_args_is_help=True, help="Plan startup and shutdown lifecycle transitions.")
+policy_app = typer.Typer(no_args_is_help=True, help="Inspect execution policies and typed actions.")
+operation_app = typer.Typer(no_args_is_help=True, help="Create, approve, execute, resume, and inspect durable operations.")
 app.add_typer(family_app, name="family")
 app.add_typer(scenario_app, name="scenario")
 app.add_typer(composition_app, name="composition")
@@ -42,6 +50,9 @@ app.add_typer(snapshot_app, name="snapshot")
 app.add_typer(profile_app, name="profile")
 app.add_typer(incident_app, name="incident")
 app.add_typer(diagnostic_app, name="diagnostic")
+app.add_typer(lifecycle_app, name="lifecycle")
+app.add_typer(policy_app, name="policy")
+app.add_typer(operation_app, name="operation")
 console = Console()
 
 
@@ -60,6 +71,22 @@ def _registry() -> ScenarioFamilyRegistry:
     registry = ScenarioFamilyRegistry()
     registry.load_directory(_repo_root() / "scenarios" / "families")
     return registry
+
+
+def _lifecycle_registry() -> LifecycleProfileRegistry:
+    registry = LifecycleProfileRegistry()
+    registry.load_directory(_repo_root() / "lifecycle")
+    return registry
+
+
+def _policy_registry() -> ExecutionPolicyRegistry:
+    registry = ExecutionPolicyRegistry()
+    registry.load_directory(_repo_root() / "policies")
+    return registry
+
+
+def _operation_runtime(store_dir: Path) -> OperationRuntime:
+    return OperationRuntime(build_builtin_action_catalog(), build_default_executor_registry(), FileOperationStore(store_dir))
 
 
 def _parse_bindings(items: list[str]) -> dict[str, Any]:
@@ -542,6 +569,156 @@ def run_incident_probe(
             store.put(artifact)
     console.print(f"[green]Probe completed.[/green] {len(refined.evidence) - len(incident.evidence)} new evidence facts")
     console.print(f"Diagnosis: [bold]{refined.certificate.status if refined.certificate else 'none'}[/bold]")
+
+
+@lifecycle_app.command("list")
+def list_lifecycle_profiles() -> None:
+    table = Table(title="Lifecycle profiles")
+    table.add_column("Profile")
+    table.add_column("Operation")
+    table.add_column("Target profile")
+    table.add_column("Stages")
+    for profile in _lifecycle_registry().values():
+        table.add_row(profile.profile_id, profile.operation_type, profile.target_operational_profile_id, str(len(profile.stages)))
+    console.print(table)
+
+
+@lifecycle_app.command("plan")
+def plan_lifecycle(
+    profile_id: str,
+    snapshot_path: Path,
+    output: Path = typer.Option(...),
+    mode: str = typer.Option("dry_run"),
+    policy_id: str | None = typer.Option(None),
+) -> None:
+    snapshot = _load_model(snapshot_path, EnvironmentSnapshot)
+    profile = _lifecycle_registry().get(profile_id)
+    plan = LifecyclePlanner(build_builtin_action_catalog()).plan(profile, snapshot, mode=mode, policy_id=policy_id)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    table = Table(title=f"Lifecycle plan: {profile.title}")
+    table.add_column("Stage")
+    table.add_column("Action")
+    table.add_column("Risk")
+    table.add_column("Depends on")
+    for action in plan.actions:
+        table.add_row(action.stage_id or "—", action.title or action.action_type_id, action.risk.risk_class, ", ".join(action.depends_on_action_ids) or "—")
+    console.print(table)
+    if plan.unsupported_assumptions:
+        for item in plan.unsupported_assumptions:
+            console.print(f"[yellow]{item}[/yellow]")
+    console.print(f"[green]Wrote {output}[/green]")
+
+
+@policy_app.command("list")
+def list_policies() -> None:
+    table = Table(title="Execution policies")
+    table.add_column("Policy")
+    table.add_column("Environment classes")
+    table.add_column("Risks")
+    table.add_column("Mutation budget")
+    for policy in _policy_registry().values():
+        table.add_row(policy.policy_id, ", ".join(sorted(policy.environment_classes)), ", ".join(sorted(policy.allowed_risk_classes)), str(policy.mutation_budget))
+    console.print(table)
+
+
+@policy_app.command("actions")
+def list_actions() -> None:
+    table = Table(title="Typed action catalog")
+    table.add_column("Action type")
+    table.add_column("Risk")
+    table.add_column("Executor")
+    table.add_column("Capabilities")
+    for action in build_builtin_action_catalog().values():
+        table.add_row(action.action_type_id, action.default_risk.risk_class, action.executor_id, ", ".join(sorted(action.required_capabilities)))
+    console.print(table)
+
+
+@operation_app.command("create")
+def create_operation(
+    plan_path: Path,
+    environment_id: str,
+    store_dir: Path = typer.Option(Path("operations")),
+    mode: str = typer.Option("dry_run"),
+    output: Path | None = typer.Option(None),
+) -> None:
+    plan = _load_model(plan_path, RecoveryPlan)
+    runtime = _operation_runtime(store_dir)
+    operation = runtime.create(environment_id, plan, mode=mode)
+    if output:
+        output.write_text(operation.model_dump_json(indent=2), encoding="utf-8")
+    console.print(f"[green]{operation.operation_id}[/green] {operation.status} ({operation.mode})")
+
+
+@operation_app.command("approve")
+def approve_operation(
+    operation_id: str,
+    approver_id: str,
+    action_id: str | None = typer.Option(None),
+    store_dir: Path = typer.Option(Path("operations")),
+    reason: str = typer.Option("Approved from CLI"),
+) -> None:
+    runtime = _operation_runtime(store_dir)
+    operation = runtime.store.load(operation_id)
+    approval = ApprovalRecord(
+        approval_id=f"approval:{operation_id}:{len(operation.approvals)}", operation_id=operation_id, action_id=action_id,
+        approver_id=approver_id, decision="approve", reason=reason, granted_at_iso=utc_now_iso(), policy_id=operation.plan.policy_id,
+    )
+    operation = runtime.add_approval(operation, approval)
+    console.print(f"[green]Approval recorded.[/green] {len(operation.approvals)} total")
+
+
+@operation_app.command("run")
+def run_operation(
+    operation_id: str,
+    snapshot_path: Path,
+    policy_id: str,
+    store_dir: Path = typer.Option(Path("operations")),
+    adapter_mode: str = typer.Option("simulation", help="simulation or live"),
+    capability: list[str] = typer.Option([], "--capability"),
+    artifacts: Path | None = typer.Option(None),
+) -> None:
+    runtime = _operation_runtime(store_dir)
+    operation = runtime.store.load(operation_id)
+    snapshot = _load_model(snapshot_path, EnvironmentSnapshot)
+    world = {item.entity_id: {"observed_state": item.observed_state, "desired_state": item.desired_state, "name": item.name, "namespace": item.namespace} for item in snapshot.entities}
+    context = RuntimeContext(
+        policy_context=PolicyContext(environment_class="development", capabilities=frozenset(capability), environment_fingerprint=snapshot.source_fingerprint, expected_fingerprint=snapshot.source_fingerprint),
+        execution_context=ExecutionContext(operation_id=operation_id, mode=adapter_mode, environment_id=operation.environment_id, simulation_world=world),
+        world_provider=lambda: world, relationships_provider=lambda: snapshot.relationships,
+    )
+    finished = runtime.run(operation, _policy_registry().get(policy_id), context)
+    if artifacts:
+        artifact_store = FileArtifactStore(artifacts)
+        for artifact in build_operation_artifacts(finished): artifact_store.put(artifact)
+    console.print(f"[bold]{finished.status}[/bold] certificate={finished.recovery_certificate.status if finished.recovery_certificate else 'none'}")
+
+
+@operation_app.command("cancel")
+def cancel_operation(
+    operation_id: str,
+    store_dir: Path = typer.Option(Path("operations")),
+    reason: str = typer.Option("Cancelled from CLI"),
+) -> None:
+    runtime = _operation_runtime(store_dir)
+    operation = runtime.cancel(runtime.store.load(operation_id), reason)
+    console.print(f"[yellow]{operation.operation_id}[/yellow] {operation.status}")
+
+
+@operation_app.command("show")
+def show_operation(operation_id: str, store_dir: Path = typer.Option(Path("operations"))) -> None:
+    operation = FileOperationStore(store_dir).load(operation_id)
+    table = Table(title=operation.operation_id)
+    table.add_column("Metric")
+    table.add_column("Value")
+    table.add_row("Status", operation.status)
+    table.add_row("Mode", operation.mode)
+    table.add_row("Actions", str(len(operation.plan.actions)))
+    table.add_row("Receipts", str(len(operation.action_receipts)))
+    table.add_row("Approvals", str(len(operation.approvals)))
+    table.add_row("Checkpoints", str(len(operation.checkpoints)))
+    table.add_row("Certificate", operation.recovery_certificate.status if operation.recovery_certificate else "none")
+    console.print(table)
 
 
 if __name__ == "__main__":

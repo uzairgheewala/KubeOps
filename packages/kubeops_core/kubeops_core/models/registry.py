@@ -22,6 +22,9 @@ RegistryCategory = Literal[
     "evidence_intent",
     "collector",
     "causal_template",
+    "action_type",
+    "lifecycle_profile",
+    "execution_policy",
 ]
 
 

@@ -401,3 +401,23 @@ button { color: inherit; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+.operation-safety-banner { display:flex; justify-content:space-between; gap:1rem; align-items:center; padding:1rem 1.25rem; border:1px solid var(--border); border-radius:14px; background:var(--panel); margin-bottom:1rem; }
+.operation-safety-banner p { margin:.25rem 0 0; color:var(--muted); }
+.operation-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-bottom:1rem; }
+.operation-actions .danger { border-color:var(--negative); color:var(--negative); }
+.operation-list { display:flex; flex-direction:column; gap:.5rem; }
+.operation-list > button { display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left; }
+.operation-list > button span { display:flex; flex-direction:column; }
+.operation-list > button.selected { border-color:var(--accent); }
+.stage-stack { display:flex; flex-direction:column; gap:1rem; }
+.lifecycle-stage > header { display:flex; align-items:center; justify-content:space-between; }
+.lifecycle-stage h3 { margin:.1rem 0; }
+.action-dag { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:.75rem; }
+.action-card,.decision-card,.receipt-card,.checkpoint-card,.verification-card { display:flex; flex-direction:column; gap:.45rem; padding:.9rem; border:1px solid var(--border); border-radius:12px; background:var(--panel-subtle); }
+.action-card > div,.decision-card > div,.receipt-card > div { display:flex; flex-wrap:wrap; gap:.35rem; }
+.action-card code,.checkpoint-card code { overflow-wrap:anywhere; }
+.decision-card ul { margin:.25rem 0; padding-left:1.2rem; }
+.checkpoint-card { margin-bottom:.65rem; }
+.receipt-card pre { white-space:pre-wrap; color:var(--negative); }
+@media (max-width: 900px) { .operation-safety-banner { align-items:flex-start; flex-direction:column; } }

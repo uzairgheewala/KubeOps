@@ -18,6 +18,10 @@ def configure_paths(repo_root: Path, tmp_path: Path):
         KUBEOPS_SCENARIO_DIR=repo_root / "scenarios",
         KUBEOPS_PROFILE_DIR=repo_root / "profiles",
         KUBEOPS_ARTIFACT_DIR=tmp_path / "artifacts",
+        KUBEOPS_LIFECYCLE_DIR=repo_root / "lifecycle",
+        KUBEOPS_POLICY_DIR=repo_root / "policies",
+        KUBEOPS_OPERATION_DIR=tmp_path / "operations",
+        KUBEOPS_LIVE_EXECUTION_ENABLED=False,
     ):
         clear_service_caches()
         yield
@@ -29,12 +33,15 @@ def test_status_profiles_and_family_endpoints(db) -> None:
     status_response = client.get("/api/v1/system/status")
     assert status_response.status_code == 200
     status_payload = status_response.json()
-    assert status_payload["mode"] == "read_only_diagnosis"
-    assert status_payload["release"] == "0.3.0"
+    assert status_payload["mode"] == "guarded_lifecycle_recovery"
+    assert status_payload["release"] == "0.4.0"
     assert status_payload["profile_count"] >= 2
     assert "immutable_snapshots" in status_payload["capabilities"]
     assert "probe_planning" in status_payload["capabilities"]
     assert status_payload["diagnostic_collector_count"] >= 10
+    assert status_payload["action_type_count"] >= 10
+    assert status_payload["lifecycle_profile_count"] >= 2
+    assert "durable_execution" in status_payload["capabilities"]
 
     catalog_response = client.get("/api/v1/diagnostic-catalog")
     assert catalog_response.status_code == 200
@@ -250,3 +257,113 @@ def test_composition_and_artifact_endpoints(db) -> None:
     artifact_response = client.get(f"/api/v1/artifacts/{artifact_id}")
     assert artifact_response.status_code == 200
     assert artifact_response.json()["content_hash"]
+
+
+def test_lifecycle_plan_approval_dry_run_and_certificate(db, repo_root: Path) -> None:
+    client = Client()
+    fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
+    environment = {
+        "environment_id": "operation-kind", "name": "Operation Kind", "environment_class": "development",
+        "provider": "fixture", "cluster_provider": "kind",
+        "access_methods": [{"method_id": "fixture", "method_type": "fixture", "title": "Recorded fixture", "fixture_path": str(fixture_path)}],
+        "default_access_method_id": "fixture", "operational_profile_ids": ["local-development-usable.v1"],
+    }
+    assert client.post("/api/v1/environments", data=environment, content_type="application/json").status_code == 201
+    snapshot_response = client.post("/api/v1/environments/operation-kind/snapshots", data={}, content_type="application/json")
+    assert snapshot_response.status_code == 201
+    snapshot_id = snapshot_response.json()["snapshot_id"]
+
+    plan_response = client.post(
+        f"/api/v1/snapshots/{snapshot_id}/lifecycle/plan",
+        data={"lifecycle_profile_id": "local-development-startup.v1", "mode": "dry_run"},
+        content_type="application/json",
+    )
+    assert plan_response.status_code == 201
+    plan = plan_response.json()
+    assert len(plan["actions"]) == 2
+    assert len(plan["verification_conditions"]) == 2
+    assert plan["actions"][1]["depends_on_action_ids"] == [plan["actions"][0]["action_id"]]
+
+    create_response = client.post(
+        "/api/v1/operations",
+        data={"snapshot_id": snapshot_id, "lifecycle_profile_id": "local-development-startup.v1", "mode": "dry_run"},
+        content_type="application/json",
+    )
+    assert create_response.status_code == 201
+    operation = create_response.json()
+    operation_id = operation["operation_id"]
+    assert operation["status"] == "created"
+
+    # A separate operation proves the durable cancellation endpoint without
+    # consuming the primary execution fixture.
+    cancel_created = client.post(
+        "/api/v1/operations",
+        data={"snapshot_id": snapshot_id, "lifecycle_profile_id": "local-development-shutdown.v1", "mode": "dry_run"},
+        content_type="application/json",
+    ).json()
+    cancel_response = client.post(
+        f"/api/v1/operations/{cancel_created['operation_id']}/cancel",
+        data={"reason": "integration cancellation"},
+        content_type="application/json",
+    )
+    assert cancel_response.status_code == 201
+    assert cancel_response.json()["status"] == "cancelled"
+
+    pending_response = client.post(f"/api/v1/operations/{operation_id}/run", data={}, content_type="application/json")
+    assert pending_response.status_code == 201
+    assert pending_response.json()["status"] == "awaiting_approval"
+    assert any(item["outcome"] == "approval_required" for item in pending_response.json()["policy_decisions"])
+
+    approval_response = client.post(
+        f"/api/v1/operations/{operation_id}/approvals",
+        data={"approver_id": "integration-operator", "decision": "approve"},
+        content_type="application/json",
+    )
+    assert approval_response.status_code == 201
+    assert approval_response.json()["approvals"]
+
+    run_response = client.post(f"/api/v1/operations/{operation_id}/run", data={}, content_type="application/json")
+    assert run_response.status_code == 201
+    finished = run_response.json()
+    assert finished["status"] == "completed"
+    assert len(finished["action_receipts"]) == 2
+    assert {item["executor_id"] for item in finished["action_receipts"]} == {"dry_run"}
+    assert finished["checkpoints"]
+    assert finished["verification_results"]
+    assert finished["recovery_certificate"]["status"] == "partially_recovered"
+    assert finished["artifacts"]
+
+    detail = client.get(f"/api/v1/operations/{operation_id}")
+    assert detail.status_code == 200
+    assert detail.json()["recovery_certificate"]["metadata"]["dry_run"] is True
+    certificate = client.get(f"/api/v1/operations/{operation_id}/certificate")
+    assert certificate.status_code == 200
+    assert certificate.json()["operation_id"] == operation_id
+
+
+def test_live_execution_is_disabled_by_default(db, repo_root: Path) -> None:
+    client = Client()
+    fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
+    environment = {
+        "environment_id": "live-disabled", "name": "Live Disabled", "environment_class": "development",
+        "provider": "fixture", "cluster_provider": "kind",
+        "access_methods": [{"method_id": "fixture", "method_type": "fixture", "title": "fixture", "fixture_path": str(fixture_path)}],
+        "default_access_method_id": "fixture",
+    }
+    client.post("/api/v1/environments", data=environment, content_type="application/json")
+    snapshot = client.post("/api/v1/environments/live-disabled/snapshots", data={}, content_type="application/json").json()
+    operation = client.post("/api/v1/operations", data={"snapshot_id": snapshot["snapshot_id"], "lifecycle_profile_id": "local-development-startup.v1", "mode": "guarded_execution"}, content_type="application/json").json()
+    response = client.post(f"/api/v1/operations/{operation['operation_id']}/run", data={"execution_mode": "live"}, content_type="application/json")
+    assert response.status_code == 403
+    assert "disabled" in response.json()["detail"]
+
+
+def test_release_04_catalog_seeder(db) -> None:
+    from django.core.management import call_command
+    from api.models import ExecutionPolicyRecord, LifecycleProfileRecord
+
+    call_command("seed_release_04", verbosity=0)
+    assert LifecycleProfileRecord.objects.count() >= 2
+    assert ExecutionPolicyRecord.objects.count() >= 2
+    assert LifecycleProfileRecord.objects.filter(profile_id="local-development-startup.v1").exists()
+    assert ExecutionPolicyRecord.objects.filter(policy_id="local-development-guarded.v1").exists()

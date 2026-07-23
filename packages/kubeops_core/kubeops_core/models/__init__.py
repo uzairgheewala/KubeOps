@@ -65,6 +65,8 @@ from .relationship import Relationship
 from .registry import RegistryEntry, RegistrySnapshot
 from .run import RunArtifact, SimulationRun, TimelineEvent, WorldSnapshot
 from .verification import RecoveryCertificate, VerificationCondition, VerificationResult
+from .lifecycle import LifecycleActionTemplate, LifecycleProfile, LifecycleStageDefinition
+from .operation import ApprovalRecord, ActionReceipt, ExecutionCheckpoint, OperationEvent, OperationRun
 from .scenario import (
     ConstraintSpec,
     DisturbanceDefinition,

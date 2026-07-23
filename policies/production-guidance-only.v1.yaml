@@ -1,0 +1,12 @@
+schema_version: kubeops.io/v1
+policy_id: production-guidance-only.v1
+title: Production guidance-only baseline
+environment_classes: [production]
+allowed_risk_classes: [R0]
+allowed_action_type_ids: [operation.wait_for_condition.v1]
+required_approvals_by_risk: {R0: 0}
+maximum_concurrent_actions: 1
+require_checkpoint_for_risk: [R1, R2, R3, R4, R5]
+require_target_fingerprint: true
+mutation_budget: 0
+break_glass_allowed: false

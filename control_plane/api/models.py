@@ -299,3 +299,151 @@ class DiagnosisCertificateRecord(models.Model):
 
     class Meta:
         ordering = ["-issued_at"]
+
+
+class LifecycleProfileRecord(models.Model):
+    profile_id = models.CharField(max_length=255, unique=True)
+    version = models.CharField(max_length=64)
+    title = models.CharField(max_length=255)
+    operation_type = models.CharField(max_length=32)
+    target_operational_profile_id = models.CharField(max_length=255)
+    content_hash = models.CharField(max_length=64)
+    payload = models.JSONField()
+    source_path = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["profile_id"]
+
+
+class ExecutionPolicyRecord(models.Model):
+    policy_id = models.CharField(max_length=255, unique=True)
+    title = models.CharField(max_length=255)
+    content_hash = models.CharField(max_length=64)
+    payload = models.JSONField()
+    source_path = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["policy_id"]
+
+
+class OperationRecord(models.Model):
+    operation_id = models.CharField(max_length=255, unique=True)
+    environment = models.ForeignKey(EnvironmentRecord, on_delete=models.CASCADE, related_name="operations")
+    snapshot = models.ForeignKey(EnvironmentSnapshotRecord, on_delete=models.SET_NULL, null=True, blank=True, related_name="operations")
+    incident = models.ForeignKey(IncidentRecord, on_delete=models.SET_NULL, null=True, blank=True, related_name="operations")
+    operation_type = models.CharField(max_length=32)
+    objective_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=64)
+    mode = models.CharField(max_length=32)
+    plan_id = models.CharField(max_length=255)
+    policy_id = models.CharField(max_length=255, null=True, blank=True)
+    certificate_status = models.CharField(max_length=64, null=True, blank=True)
+    payload = models.JSONField()
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    persisted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["environment", "updated_at"]),
+            models.Index(fields=["status", "updated_at"]),
+            models.Index(fields=["operation_type", "status"]),
+        ]
+
+
+class OperationPolicyDecisionRecord(models.Model):
+    decision_id = models.CharField(max_length=255)
+    operation = models.ForeignKey(OperationRecord, on_delete=models.CASCADE, related_name="policy_decisions")
+    action_id = models.CharField(max_length=255)
+    policy_id = models.CharField(max_length=255)
+    outcome = models.CharField(max_length=32)
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["action_id"]
+        constraints = [models.UniqueConstraint(fields=["operation", "decision_id"], name="unique_operation_policy_decision")]
+
+
+class OperationApprovalRecord(models.Model):
+    approval_id = models.CharField(max_length=255, unique=True)
+    operation = models.ForeignKey(OperationRecord, on_delete=models.CASCADE, related_name="approvals")
+    action_id = models.CharField(max_length=255, null=True, blank=True)
+    approver_id = models.CharField(max_length=255)
+    decision = models.CharField(max_length=16)
+    granted_at = models.DateTimeField()
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["granted_at"]
+
+
+class ActionReceiptRecord(models.Model):
+    receipt_id = models.CharField(max_length=255, unique=True)
+    operation = models.ForeignKey(OperationRecord, on_delete=models.CASCADE, related_name="action_receipts")
+    action_id = models.CharField(max_length=255)
+    action_type_id = models.CharField(max_length=255)
+    executor_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=32)
+    attempt = models.PositiveIntegerField(default=1)
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField()
+    idempotency_key = models.CharField(max_length=512, null=True, blank=True)
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["started_at", "receipt_id"]
+        indexes = [models.Index(fields=["operation", "action_id"]), models.Index(fields=["idempotency_key", "status"])]
+
+
+class OperationTimelineRecord(models.Model):
+    operation = models.ForeignKey(OperationRecord, on_delete=models.CASCADE, related_name="timeline_entries")
+    sequence = models.PositiveIntegerField()
+    event_type = models.CharField(max_length=128)
+    action_id = models.CharField(max_length=255, null=True, blank=True)
+    occurred_at = models.DateTimeField()
+    payload = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ["sequence"]
+        constraints = [models.UniqueConstraint(fields=["operation", "sequence"], name="unique_operation_timeline_sequence")]
+
+
+class ExecutionCheckpointRecord(models.Model):
+    checkpoint_id = models.CharField(max_length=255, unique=True)
+    operation = models.ForeignKey(OperationRecord, on_delete=models.CASCADE, related_name="checkpoints")
+    state_hash = models.CharField(max_length=64)
+    resumable = models.BooleanField(default=True)
+    created_at = models.DateTimeField()
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+class OperationVerificationRecord(models.Model):
+    result_id = models.CharField(max_length=255, unique=True)
+    operation = models.ForeignKey(OperationRecord, on_delete=models.CASCADE, related_name="verification_results")
+    condition_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=32)
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["condition_id"]
+
+
+class RecoveryCertificateRecord(models.Model):
+    certificate_id = models.CharField(max_length=255, unique=True)
+    operation = models.OneToOneField(OperationRecord, on_delete=models.CASCADE, related_name="recovery_certificate")
+    status = models.CharField(max_length=64)
+    payload = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

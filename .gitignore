@@ -12,6 +12,7 @@ node_modules/
 dist/
 ui/dist/
 artifacts/
+operations/
 *.sqlite3
 coverage.xml
 htmlcov/

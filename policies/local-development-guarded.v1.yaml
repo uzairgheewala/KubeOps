@@ -1,0 +1,32 @@
+schema_version: kubeops.io/v1
+policy_id: local-development-guarded.v1
+title: Local development guarded execution
+environment_classes: [development, simulation]
+allowed_risk_classes: [R0, R1, R2]
+allowed_action_type_ids:
+  - operation.wait_for_condition.v1
+  - local.process.start.v1
+  - local.process.stop.v1
+  - docker.container.start.v1
+  - docker.container.stop.v1
+  - host.service.restart.v1
+  - kubernetes.workload.rollout_restart.v1
+  - kubernetes.job.delete_terminal.v1
+  - argocd.application.refresh.v1
+  - port_forward.ensure.v1
+required_approvals_by_risk:
+  R0: 0
+  R1: 0
+  R2: 1
+maximum_concurrent_actions: 1
+require_checkpoint_for_risk: [R2]
+require_target_fingerprint: true
+allowed_target_patterns:
+  - "k8s/*"
+  - "host/*"
+  - "runtime/*"
+mutation_budget: 20
+capability_grants: []
+break_glass_allowed: false
+metadata:
+  release: 0.4

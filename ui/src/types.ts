@@ -554,3 +554,228 @@ export type DiagnosticCaseResult = {
   scenario?: ScenarioInstance;
   artifacts?: ArtifactSummary[];
 };
+
+export type RiskAssessment = {
+  risk_class: "R0" | "R1" | "R2" | "R3" | "R4" | "R5";
+  blast_radius: string;
+  availability_risk: string;
+  data_risk: string;
+  security_risk: string;
+  reversible: boolean;
+  idempotent: boolean;
+  rationale: string[];
+};
+
+export type ActionTypeDefinition = {
+  action_type_id: string;
+  title: string;
+  description: string;
+  required_capabilities: string[];
+  supported_modes: string[];
+  executor_id: string;
+  default_risk: RiskAssessment;
+  expected_effects: string[];
+  possible_side_effects: string[];
+  rollback_action_type_id?: string | null;
+};
+
+export type PlannedAction = {
+  action_id: string;
+  action_type_id: string;
+  title: string;
+  target_ids: string[];
+  parameters: Record<string, unknown>;
+  depends_on_action_ids: string[];
+  risk: RiskAssessment;
+  status: string;
+  idempotency_key?: string | null;
+  stage_id?: string | null;
+  checkpoint_before: boolean;
+  optional: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type RecoveryPlan = {
+  plan_id: string;
+  incident_id?: string | null;
+  environment_id?: string | null;
+  operation_type: string;
+  objective_id: string;
+  target_invariant_ids: string[];
+  protected_invariant_ids: string[];
+  actions: PlannedAction[];
+  verification_condition_ids: string[];
+  mode: string;
+  policy_id?: string | null;
+  assumptions: string[];
+  unsupported_assumptions: string[];
+  created_at_iso?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type LifecycleProfile = {
+  profile_id: string;
+  version: string;
+  title: string;
+  description: string;
+  operation_type: "startup" | "shutdown" | "maintenance";
+  environment_classes: string[];
+  target_operational_profile_id: string;
+  protected_invariant_ids: string[];
+  default_policy_id?: string | null;
+  stages: Array<{
+    stage_id: string;
+    title: string;
+    description: string;
+    depends_on_stage_ids: string[];
+    action_templates: Array<Record<string, unknown>>;
+    timeout_seconds: number;
+    on_failure: string;
+  }>;
+  metadata: Record<string, unknown>;
+};
+
+export type ExecutionPolicy = {
+  policy_id: string;
+  title: string;
+  environment_classes: string[];
+  allowed_risk_classes: string[];
+  allowed_action_type_ids: string[];
+  denied_action_type_ids: string[];
+  required_approvals_by_risk: Record<string, number>;
+  maximum_concurrent_actions: number;
+  require_checkpoint_for_risk: string[];
+  require_target_fingerprint: boolean;
+  mutation_budget?: number | null;
+  capability_grants: string[];
+  break_glass_allowed: boolean;
+};
+
+export type PolicyDecision = {
+  decision_id: string;
+  policy_id: string;
+  action_id: string;
+  outcome: "allow" | "deny" | "approval_required";
+  reasons: string[];
+  required_approval_count: number;
+  capability_gaps: string[];
+  requires_checkpoint: boolean;
+};
+
+export type OperationApproval = {
+  approval_id: string;
+  operation_id: string;
+  action_id?: string | null;
+  approver_id: string;
+  decision: string;
+  reason: string;
+  granted_at_iso: string;
+};
+
+export type ActionReceipt = {
+  receipt_id: string;
+  operation_id: string;
+  action_id: string;
+  action_type_id: string;
+  executor_id: string;
+  status: string;
+  attempt: number;
+  started_at_iso: string;
+  completed_at_iso: string;
+  exit_code?: number | null;
+  stdout: string;
+  stderr: string;
+  observed_effects: string[];
+  idempotency_key?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ExecutionCheckpoint = {
+  checkpoint_id: string;
+  operation_id: string;
+  created_at_iso: string;
+  completed_action_ids: string[];
+  pending_action_ids: string[];
+  failed_action_ids: string[];
+  state_hash: string;
+  resumable: boolean;
+};
+
+export type VerificationResult = {
+  result_id: string;
+  condition_id: string;
+  status: string;
+  evaluated_at_seconds: number;
+  explanation: string;
+  evidence_ids: string[];
+  actual_value: unknown;
+};
+
+export type RecoveryCertificate = {
+  certificate_id: string;
+  incident_id?: string | null;
+  operation_id?: string | null;
+  plan_id: string;
+  status: string;
+  restored_invariant_ids: string[];
+  unresolved_invariant_ids: string[];
+  action_receipt_ids: string[];
+  verification_result_ids: string[];
+  residual_risks: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type OperationTimelineEvent = {
+  sequence: number;
+  operation_id: string;
+  event_type: string;
+  occurred_at_iso: string;
+  title: string;
+  action_id?: string | null;
+  artifact_ids: string[];
+  details: Record<string, unknown>;
+};
+
+export type OperationRun = {
+  operation_id: string;
+  environment_id: string;
+  operation_type: string;
+  objective_id: string;
+  status: string;
+  mode: string;
+  plan: RecoveryPlan;
+  policy_decisions: PolicyDecision[];
+  approvals: OperationApproval[];
+  action_receipts: ActionReceipt[];
+  verification_results: VerificationResult[];
+  recovery_certificate?: RecoveryCertificate | null;
+  events: OperationTimelineEvent[];
+  checkpoints: ExecutionCheckpoint[];
+  current_action_ids: string[];
+  created_at_iso: string;
+  updated_at_iso: string;
+  started_at_iso?: string | null;
+  completed_at_iso?: string | null;
+  pause_reason?: string | null;
+  failure_reason?: string | null;
+  metadata: Record<string, unknown>;
+  artifacts?: ArtifactSummary[];
+};
+
+export type OperationSummary = {
+  operation_id: string;
+  environment_id: string;
+  snapshot_id?: string | null;
+  incident_id?: string | null;
+  operation_type: string;
+  objective_id: string;
+  status: string;
+  mode: string;
+  plan_id: string;
+  policy_id?: string | null;
+  certificate_status?: string | null;
+  action_count: number;
+  receipt_count: number;
+  approval_count: number;
+  updated_at: string;
+};

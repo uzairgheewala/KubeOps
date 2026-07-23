@@ -6,6 +6,10 @@ from pathlib import Path
 from django.conf import settings
 
 from kubeops_core.artifacts import FileArtifactStore
+from kubeops_core.actions import build_builtin_action_catalog
+from kubeops_core.execution import FileOperationStore, OperationRuntime, build_default_executor_registry
+from kubeops_core.lifecycle import LifecyclePlanner, LifecycleProfileRegistry
+from kubeops_core.policy import ExecutionPolicyRegistry
 from kubeops_core.environments import EnvironmentIntelligenceService
 from kubeops_core.diagnosis import InvestigationService, ScenarioDiagnosisEvaluator, build_builtin_diagnostic_catalog
 from kubeops_core.models.registry import RegistryEntry
@@ -13,6 +17,40 @@ from kubeops_core.profiles import OperationalProfileRegistry
 from kubeops_core.registry import ScenarioFamilyRegistry, build_builtin_catalog
 from kubeops_core.scenarios import ScenarioCompiler
 from kubeops_core.simulator import SimulationEngine
+
+
+@lru_cache(maxsize=1)
+def lifecycle_registry() -> LifecycleProfileRegistry:
+    registry = LifecycleProfileRegistry()
+    registry.load_directory(settings.KUBEOPS_LIFECYCLE_DIR)
+    return registry
+
+
+@lru_cache(maxsize=1)
+def policy_registry() -> ExecutionPolicyRegistry:
+    registry = ExecutionPolicyRegistry()
+    registry.load_directory(settings.KUBEOPS_POLICY_DIR)
+    return registry
+
+
+@lru_cache(maxsize=1)
+def action_catalog():
+    return build_builtin_action_catalog()
+
+
+@lru_cache(maxsize=1)
+def lifecycle_planner() -> LifecyclePlanner:
+    return LifecyclePlanner(action_catalog())
+
+
+@lru_cache(maxsize=1)
+def operation_store() -> FileOperationStore:
+    return FileOperationStore(settings.KUBEOPS_OPERATION_DIR)
+
+
+@lru_cache(maxsize=1)
+def operation_runtime() -> OperationRuntime:
+    return OperationRuntime(action_catalog(), build_default_executor_registry(), operation_store())
 
 
 @lru_cache(maxsize=1)
@@ -97,6 +135,12 @@ def registry_catalog():
                 metadata={"family_id": template.family_id, "parent_family_id": template.parent_family_id, "specificity": template.specificity},
             )
         )
+    for action in action_catalog().values():
+        catalog.register(RegistryEntry(registry_key=action.action_type_id, category="action_type", title=action.title, description=action.description, capabilities={"plan", "execute"}, metadata={"risk_class": action.default_risk.risk_class, "executor_id": action.executor_id, "supported_modes": sorted(action.supported_modes)}))
+    for profile in lifecycle_registry().values():
+        catalog.register(RegistryEntry(registry_key=profile.profile_id, category="lifecycle_profile", version=profile.version, title=profile.title, description=profile.description, capabilities={"plan"}, metadata={"operation_type": profile.operation_type, "stage_count": len(profile.stages)}))
+    for policy in policy_registry().values():
+        catalog.register(RegistryEntry(registry_key=policy.policy_id, category="execution_policy", title=policy.title, capabilities={"authorize"}, metadata={"allowed_risk_classes": sorted(policy.allowed_risk_classes), "mutation_budget": policy.mutation_budget}))
     return catalog
 
 
@@ -136,6 +180,12 @@ def artifact_store() -> FileArtifactStore:
 
 
 def clear_service_caches() -> None:
+    lifecycle_registry.cache_clear()
+    policy_registry.cache_clear()
+    action_catalog.cache_clear()
+    lifecycle_planner.cache_clear()
+    operation_store.cache_clear()
+    operation_runtime.cache_clear()
     scenario_registry.cache_clear()
     profile_registry.cache_clear()
     scenario_compiler.cache_clear()

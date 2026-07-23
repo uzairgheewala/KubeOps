@@ -7,6 +7,7 @@ bootstrap:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
 
 migrate:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
@@ -14,6 +15,7 @@ migrate:
 seed:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
 
 api:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py runserver 0.0.0.0:8000
@@ -42,5 +44,5 @@ format:
 	cd ui && npm run format
 
 clean:
-	rm -rf .venv artifacts .pytest_cache .mypy_cache .ruff_cache
+	rm -rf .venv artifacts operations .pytest_cache .mypy_cache .ruff_cache
 	rm -rf ui/node_modules ui/dist

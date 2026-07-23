@@ -12,13 +12,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from kubeops_core import __version__ as core_version
-from kubeops_core.artifacts import build_incident_artifacts, build_run_artifacts, build_snapshot_artifacts
+from kubeops_core.artifacts import build_incident_artifacts, build_operation_artifacts, build_run_artifacts, build_snapshot_artifacts
 from kubeops_core.discovery import diff_snapshots, export_discovery_fixture
 from kubeops_core.health import HealthAssessmentEngine
+from kubeops_core.execution import ExecutionContext, RuntimeContext
+from kubeops_core.policy import PolicyContext
+from kubeops_core.util import utc_now_iso
 from kubeops_core.models import (
     AccessMethodDefinition,
     AccessValidationResult,
     ActionInstance,
+    ActionReceipt,
+    ApprovalRecord,
     ActionTypeDefinition,
     CausalEdge,
     CausalTemplate,
@@ -48,6 +53,8 @@ from kubeops_core.models import (
     OperationalProfile,
     OperationalProfileAssessment,
     OperationalProfileSpec,
+    OperationRun,
+    LifecycleProfile,
     PolicyDecision,
     ProbeIntent,
     ProbePlan,
@@ -65,6 +72,8 @@ from kubeops_core.models import (
     TopologyGraph,
     VerificationCondition,
     VerificationResult,
+    ExecutionCheckpoint,
+    OperationEvent,
 )
 from kubeops_core.scenarios import ScenarioCompileError, ScenarioComposer
 from kubeops_core.topology import TopologyCompiler
@@ -80,6 +89,16 @@ from .models import (
     IncidentRecord,
     IncidentTimelineRecord,
     OperationEventRecord,
+    OperationRecord,
+    OperationPolicyDecisionRecord,
+    OperationApprovalRecord,
+    ActionReceiptRecord,
+    OperationTimelineRecord,
+    ExecutionCheckpointRecord,
+    OperationVerificationRecord,
+    RecoveryCertificateRecord,
+    LifecycleProfileRecord,
+    ExecutionPolicyRecord,
     OperationalProfileRecord,
     ProfileAssessmentRecord,
     ProbeRunRecord,
@@ -88,10 +107,15 @@ from .models import (
     SnapshotRelationshipRecord,
 )
 from .services import (
+    action_catalog,
     artifact_store,
     diagnostic_catalog,
     environment_intelligence,
     investigation_service,
+    lifecycle_planner,
+    lifecycle_registry,
+    operation_runtime,
+    policy_registry,
     profile_registry,
     registry_catalog,
     scenario_compiler,
@@ -483,9 +507,9 @@ class SystemStatusView(APIView):
         return Response(
             {
                 "service": "kubeops-control-plane",
-                "release": "0.3.0",
+                "release": "0.4.0",
                 "core_version": core_version,
-                "mode": "read_only_diagnosis",
+                "mode": "guarded_lifecycle_recovery",
                 "status": "ok",
                 "family_count": len(scenario_registry()),
                 "profile_count": len(profile_registry()),
@@ -494,6 +518,10 @@ class SystemStatusView(APIView):
                 "diagnostic_intent_count": len(diagnostic_catalog().intents()),
                 "diagnostic_collector_count": len(diagnostic_catalog().collectors()),
                 "causal_template_count": len(diagnostic_catalog().templates()),
+                "action_type_count": len(action_catalog()),
+                "lifecycle_profile_count": len(lifecycle_registry()),
+                "execution_policy_count": len(policy_registry()),
+                "operation_count": OperationRecord.objects.count(),
                 "capabilities": [
                     "canonical_ir",
                     "scenario_compilation",
@@ -519,6 +547,16 @@ class SystemStatusView(APIView):
                     "probe_planning",
                     "diagnosis_certificates",
                     "incident_persistence",
+                    "lifecycle_planning",
+                    "typed_actions",
+                    "independent_policy_decisions",
+                    "approval_gates",
+                    "durable_execution",
+                    "idempotency_guards",
+                    "execution_checkpoints",
+                    "rollback",
+                    "semantic_verification",
+                    "recovery_certificates",
                 ],
             }
         )
@@ -544,6 +582,7 @@ class SchemaView(APIView):
             DiagnosisCertificate, ScenarioFamily, ScenarioInstance, ScenarioComposition,
             ActionTypeDefinition, ActionInstance, ExecutionPolicy, PolicyDecision, RecoveryPlan,
             VerificationCondition, VerificationResult, RecoveryCertificate, SimulationRun,
+            LifecycleProfile, ApprovalRecord, ActionReceipt, ExecutionCheckpoint, OperationEvent, OperationRun,
             RunArtifact, OperationalArtifact, AccessMethodDefinition, EnvironmentDefinition,
             AccessValidationResult, DiscoveryBundle, EnvironmentSnapshot, SnapshotDiff,
             TopologyGraph, OperationalProfileSpec, CompiledOperationalProfile,
@@ -1112,3 +1151,350 @@ class ScenarioRunDetailView(APIView):
             for artifact in record.artifacts.all()
         ]
         return Response(payload)
+
+
+def _operation(record: OperationRecord) -> OperationRun:
+    return OperationRun.model_validate(record.payload)
+
+
+def _operation_summary(record: OperationRecord) -> dict[str, Any]:
+    payload = record.payload
+    return {
+        "operation_id": record.operation_id,
+        "environment_id": record.environment.environment_id,
+        "snapshot_id": record.snapshot.snapshot_id if record.snapshot else None,
+        "incident_id": record.incident.incident_id if record.incident else None,
+        "operation_type": record.operation_type,
+        "objective_id": record.objective_id,
+        "status": record.status,
+        "mode": record.mode,
+        "plan_id": record.plan_id,
+        "policy_id": record.policy_id,
+        "certificate_status": record.certificate_status,
+        "action_count": len(payload.get("plan", {}).get("actions", [])),
+        "receipt_count": len(payload.get("action_receipts", [])),
+        "approval_count": len(payload.get("approvals", [])),
+        "updated_at": record.updated_at,
+    }
+
+
+def _persist_operation(
+    operation: OperationRun,
+    environment_record: EnvironmentRecord,
+    *,
+    snapshot_record: EnvironmentSnapshotRecord | None = None,
+    incident_record: IncidentRecord | None = None,
+) -> tuple[OperationRecord, list[dict[str, str]]]:
+    artifacts = build_operation_artifacts(operation)
+    paths = {item.artifact_id: artifact_store().put(item) for item in artifacts}
+    with transaction.atomic():
+        record, _ = OperationRecord.objects.update_or_create(
+            operation_id=operation.operation_id,
+            defaults={
+                "environment": environment_record,
+                "snapshot": snapshot_record,
+                "incident": incident_record,
+                "operation_type": operation.operation_type,
+                "objective_id": operation.objective_id,
+                "status": operation.status,
+                "mode": operation.mode,
+                "plan_id": operation.plan.plan_id,
+                "policy_id": operation.plan.policy_id,
+                "certificate_status": operation.recovery_certificate.status if operation.recovery_certificate else None,
+                "payload": operation.model_dump(mode="json"),
+                "created_at": _dt(operation.created_at_iso),
+                "updated_at": _dt(operation.updated_at_iso),
+                "started_at": _dt(operation.started_at_iso) if operation.started_at_iso else None,
+                "completed_at": _dt(operation.completed_at_iso) if operation.completed_at_iso else None,
+            },
+        )
+        for related in [
+            OperationPolicyDecisionRecord,
+            OperationApprovalRecord,
+            ActionReceiptRecord,
+            OperationTimelineRecord,
+            ExecutionCheckpointRecord,
+            OperationVerificationRecord,
+            RecoveryCertificateRecord,
+        ]:
+            related.objects.filter(operation=record).delete()
+        OperationPolicyDecisionRecord.objects.bulk_create([
+            OperationPolicyDecisionRecord(decision_id=item.decision_id, operation=record, action_id=item.action_id, policy_id=item.policy_id, outcome=item.outcome, payload=item.model_dump(mode="json"))
+            for item in operation.policy_decisions
+        ])
+        OperationApprovalRecord.objects.bulk_create([
+            OperationApprovalRecord(approval_id=item.approval_id, operation=record, action_id=item.action_id, approver_id=item.approver_id, decision=item.decision, granted_at=_dt(item.granted_at_iso), payload=item.model_dump(mode="json"))
+            for item in operation.approvals
+        ])
+        ActionReceiptRecord.objects.bulk_create([
+            ActionReceiptRecord(receipt_id=item.receipt_id, operation=record, action_id=item.action_id, action_type_id=item.action_type_id, executor_id=item.executor_id, status=item.status, attempt=item.attempt, started_at=_dt(item.started_at_iso), completed_at=_dt(item.completed_at_iso), idempotency_key=item.idempotency_key, payload=item.model_dump(mode="json"))
+            for item in operation.action_receipts
+        ])
+        OperationTimelineRecord.objects.bulk_create([
+            OperationTimelineRecord(operation=record, sequence=item.sequence, event_type=item.event_type, action_id=item.action_id, occurred_at=_dt(item.occurred_at_iso), payload=item.model_dump(mode="json"))
+            for item in operation.events
+        ])
+        ExecutionCheckpointRecord.objects.bulk_create([
+            ExecutionCheckpointRecord(checkpoint_id=item.checkpoint_id, operation=record, state_hash=item.state_hash, resumable=item.resumable, created_at=_dt(item.created_at_iso), payload=item.model_dump(mode="json"))
+            for item in operation.checkpoints
+        ])
+        OperationVerificationRecord.objects.bulk_create([
+            OperationVerificationRecord(result_id=item.result_id, operation=record, condition_id=item.condition_id, status=item.status, payload=item.model_dump(mode="json"))
+            for item in operation.verification_results
+        ])
+        if operation.recovery_certificate:
+            RecoveryCertificateRecord.objects.create(certificate_id=operation.recovery_certificate.certificate_id, operation=record, status=operation.recovery_certificate.status, payload=operation.recovery_certificate.model_dump(mode="json"))
+        ArtifactRecord.objects.filter(scope_type="operation", scope_id=operation.operation_id).delete()
+        ArtifactRecord.objects.bulk_create([
+            ArtifactRecord(artifact_id=item.artifact_id, scope_type=item.scope_type, scope_id=item.scope_id, artifact_type=item.artifact_type, content_hash=item.payload_hash, media_type=item.media_type, storage_path=str(paths[item.artifact_id]), derived_from=item.derived_from, metadata=item.metadata)
+            for item in artifacts
+        ], ignore_conflicts=True)
+    return record, [{"artifact_id": item.artifact_id, "artifact_type": item.artifact_type, "content_hash": item.payload_hash} for item in artifacts]
+
+
+def _snapshot_world(snapshot: EnvironmentSnapshot) -> dict[str, dict[str, Any]]:
+    return {
+        item.entity_id: {
+            "entity_id": item.entity_id,
+            "entity_type": item.entity_type,
+            "plane": item.plane,
+            "name": item.name,
+            "namespace": item.namespace,
+            "labels": item.labels,
+            "desired_state": item.desired_state,
+            "observed_state": item.observed_state,
+            "extensions": item.extensions,
+        }
+        for item in snapshot.entities
+    }
+
+
+def _runtime_context(operation: OperationRun, environment: EnvironmentRecord, snapshot: EnvironmentSnapshot, request_payload: dict[str, Any]) -> RuntimeContext:
+    from django.conf import settings
+
+    requested_live = request_payload.get("execution_mode") == "live"
+    if requested_live and not settings.KUBEOPS_LIVE_EXECUTION_ENABLED:
+        raise PermissionError("live execution is disabled by control-plane policy")
+    adapter_mode = "live" if requested_live else "simulation"
+    capabilities = set(request_payload.get("capabilities", []))
+    if adapter_mode == "simulation" or operation.mode == "dry_run":
+        for action in operation.plan.actions:
+            capabilities.update(action_catalog().get(action.action_type_id).required_capabilities)
+    world = _snapshot_world(snapshot)
+    return RuntimeContext(
+        policy_context=PolicyContext(
+            environment_class=environment.environment_class,
+            environment_fingerprint=request_payload.get("target_fingerprint", environment.fingerprint),
+            expected_fingerprint=environment.fingerprint,
+            capabilities=frozenset(capabilities),
+            mutation_count=len(operation.action_receipts),
+        ),
+        execution_context=ExecutionContext(
+            operation_id=operation.operation_id,
+            mode=adapter_mode,
+            environment_id=environment.environment_id,
+            simulation_world=world,
+            metadata={"snapshot_id": snapshot.snapshot_id},
+        ),
+        world_provider=lambda: world,
+        relationships_provider=lambda: snapshot.relationships,
+    )
+
+
+class ActionCatalogView(APIView):
+    def get(self, request: Request) -> Response:
+        return Response([item.model_dump(mode="json") for item in action_catalog().values()])
+
+
+class LifecycleProfileListView(APIView):
+    def get(self, request: Request) -> Response:
+        return Response([item.model_dump(mode="json") for item in lifecycle_registry().values()])
+
+
+class LifecycleProfileDetailView(APIView):
+    def get(self, request: Request, profile_id: str) -> Response:
+        try:
+            return Response(lifecycle_registry().get(profile_id).model_dump(mode="json"))
+        except KeyError:
+            return Response({"detail": "lifecycle profile not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ExecutionPolicyListView(APIView):
+    def get(self, request: Request) -> Response:
+        return Response([item.model_dump(mode="json") for item in policy_registry().values()])
+
+
+class SnapshotLifecyclePlanView(APIView):
+    def post(self, request: Request, snapshot_id: str) -> Response:
+        record = get_object_or_404(EnvironmentSnapshotRecord, snapshot_id=snapshot_id)
+        try:
+            profile = lifecycle_registry().get(request.data["lifecycle_profile_id"])
+            snapshot = _snapshot(record)
+            assessment_record = record.assessments.filter(profile_id=profile.target_operational_profile_id).first()
+            assessment = OperationalProfileAssessment.model_validate(assessment_record.payload) if assessment_record else None
+            plan = lifecycle_planner().plan(profile, snapshot, assessment, mode=request.data.get("mode", "dry_run"), policy_id=request.data.get("policy_id"))
+            return Response(plan.model_dump(mode="json"), status=status.HTTP_201_CREATED)
+        except KeyError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except ValidationError as exc:
+            return _validation_error(exc)
+
+
+class OperationListCreateView(APIView):
+    def get(self, request: Request) -> Response:
+        records = OperationRecord.objects.select_related("environment", "snapshot", "incident")
+        environment_id = request.query_params.get("environment_id")
+        if environment_id:
+            records = records.filter(environment__environment_id=environment_id)
+        return Response([_operation_summary(item) for item in records])
+
+    def post(self, request: Request) -> Response:
+        snapshot_record = get_object_or_404(EnvironmentSnapshotRecord, snapshot_id=request.data.get("snapshot_id"))
+        environment_record = snapshot_record.environment
+        try:
+            profile = lifecycle_registry().get(request.data["lifecycle_profile_id"])
+            snapshot = _snapshot(snapshot_record)
+            assessment_record = snapshot_record.assessments.filter(profile_id=profile.target_operational_profile_id).first()
+            assessment = OperationalProfileAssessment.model_validate(assessment_record.payload) if assessment_record else None
+            mode = request.data.get("mode", "dry_run")
+            plan = lifecycle_planner().plan(profile, snapshot, assessment, mode=mode, policy_id=request.data.get("policy_id"))
+            operation = operation_runtime().create(environment_record.environment_id, plan, mode=mode)
+            record, artifacts = _persist_operation(operation, environment_record, snapshot_record=snapshot_record)
+            payload = record.payload
+            payload["artifacts"] = artifacts
+            return Response(payload, status=status.HTTP_201_CREATED)
+        except KeyError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except ValidationError as exc:
+            return _validation_error(exc)
+
+
+class OperationDetailView(APIView):
+    def get(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        payload = dict(record.payload)
+        payload["artifacts"] = [
+            {"artifact_id": item.artifact_id, "artifact_type": item.artifact_type, "content_hash": item.content_hash}
+            for item in ArtifactRecord.objects.filter(scope_type="operation", scope_id=operation_id)
+        ]
+        return Response(payload)
+
+
+class OperationApprovalView(APIView):
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        operation = _operation(record)
+        approval = ApprovalRecord(
+            approval_id=request.data.get("approval_id", f"approval:{operation_id}:{len(operation.approvals)}"),
+            operation_id=operation_id,
+            action_id=request.data.get("action_id"),
+            approver_id=request.data.get("approver_id", "api-operator"),
+            decision=request.data.get("decision", "approve"),
+            reason=request.data.get("reason", ""),
+            granted_at_iso=utc_now_iso(),
+            policy_id=operation.plan.policy_id,
+        )
+        operation = operation_runtime().add_approval(operation, approval)
+        updated, artifacts = _persist_operation(operation, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)
+        payload = updated.payload
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OperationRunView(APIView):
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        operation = _operation(record)
+        snapshot_record = record.snapshot
+        if snapshot_record is None:
+            return Response({"detail": "operation has no source snapshot"}, status=status.HTTP_409_CONFLICT)
+        snapshot = _snapshot(snapshot_record)
+        try:
+            policy = policy_registry().get(operation.plan.policy_id or "local-development-guarded.v1")
+            context = _runtime_context(operation, record.environment, snapshot, dict(request.data))
+            finished = operation_runtime().run(operation, policy, context)
+        except PermissionError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        updated, artifacts = _persist_operation(finished, record.environment, snapshot_record=snapshot_record, incident_record=record.incident)
+        payload = updated.payload
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OperationCancelView(APIView):
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        try:
+            operation = operation_runtime().cancel(
+                _operation(record), request.data.get("reason", "Cancelled by operator")
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        updated, artifacts = _persist_operation(
+            operation,
+            record.environment,
+            snapshot_record=record.snapshot,
+            incident_record=record.incident,
+        )
+        payload = updated.payload
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OperationPauseView(APIView):
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        try:
+            operation = operation_runtime().pause(_operation(record), request.data.get("reason", "Paused by operator"))
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        updated, artifacts = _persist_operation(operation, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)
+        payload = updated.payload
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OperationResumeView(APIView):
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        if not record.snapshot:
+            return Response({"detail": "operation has no source snapshot"}, status=status.HTTP_409_CONFLICT)
+        operation = _operation(record)
+        snapshot = _snapshot(record.snapshot)
+        try:
+            policy = policy_registry().get(operation.plan.policy_id or "local-development-guarded.v1")
+            context = _runtime_context(operation, record.environment, snapshot, dict(request.data))
+            finished = operation_runtime().resume(operation_id, policy, context)
+        except (ValueError, PermissionError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        updated, artifacts = _persist_operation(finished, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)
+        payload = updated.payload
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OperationRollbackView(APIView):
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        if not record.snapshot:
+            return Response({"detail": "operation has no source snapshot"}, status=status.HTTP_409_CONFLICT)
+        operation = _operation(record)
+        snapshot = _snapshot(record.snapshot)
+        try:
+            context = _runtime_context(operation, record.environment, snapshot, dict(request.data))
+            finished = operation_runtime().rollback(operation, context)
+        except PermissionError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        updated, artifacts = _persist_operation(finished, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)
+        payload = updated.payload
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OperationCertificateView(APIView):
+    def get(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        certificate = record.payload.get("recovery_certificate")
+        if certificate is None:
+            return Response({"detail": "certificate not available"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(certificate)

@@ -10,5 +10,6 @@ export PYTHONPATH="$PWD/packages/kubeops_core:$PWD/packages/kubeops_cli:$PWD/con
 python control_plane/manage.py migrate
 python control_plane/manage.py seed_release_01
 python control_plane/manage.py seed_release_02
-printf '\nKubeOps Release 0.3 is bootstrapped.\n'
+python control_plane/manage.py seed_release_04
+printf '\nKubeOps Release 0.4 is bootstrapped.\n'
 printf 'Run ./scripts/dev.sh to start API and UI.\n'

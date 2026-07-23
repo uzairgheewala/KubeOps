@@ -6,6 +6,7 @@ from pydantic import Field, model_validator
 
 from .base import SchemaModel
 from .predicate import Predicate
+from .verification import VerificationCondition
 
 
 RiskClass = Literal["R0", "R1", "R2", "R3", "R4", "R5"]
@@ -25,8 +26,6 @@ class RiskAssessment(SchemaModel):
 
 
 class ActionTypeDefinition(SchemaModel):
-    """Stable semantic action contract; concrete executors arrive in later releases."""
-
     kind: ClassVar[str] = "ActionTypeDefinition"
 
     action_type_id: str
@@ -37,9 +36,16 @@ class ActionTypeDefinition(SchemaModel):
     expected_effects: list[str] = Field(default_factory=list)
     possible_side_effects: list[str] = Field(default_factory=list)
     required_capabilities: set[str] = Field(default_factory=set)
+    supported_modes: set[Literal["simulation", "fixture", "live"]] = Field(default_factory=lambda: {"simulation"})
+    executor_id: str = "simulation"
     default_risk: RiskAssessment = Field(default_factory=RiskAssessment)
     completion_condition_ids: list[str] = Field(default_factory=list)
+    verification_condition_ids: list[str] = Field(default_factory=list)
+    verification_conditions: list[VerificationCondition] = Field(default_factory=list)
     rollback_action_type_id: str | None = None
+    timeout_seconds: int = Field(default=120, ge=1)
+    max_attempts: int = Field(default=1, ge=1)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ActionInstance(SchemaModel):
@@ -47,20 +53,19 @@ class ActionInstance(SchemaModel):
 
     action_id: str
     action_type_id: str
+    title: str = ""
     target_ids: list[str] = Field(default_factory=list)
     parameters: dict[str, Any] = Field(default_factory=dict)
     depends_on_action_ids: list[str] = Field(default_factory=list)
     risk: RiskAssessment = Field(default_factory=RiskAssessment)
     status: Literal[
-        "proposed",
-        "authorized",
-        "running",
-        "completed",
-        "failed",
-        "skipped",
-        "rolled_back",
+        "proposed", "approval_required", "authorized", "running", "completed", "failed",
+        "skipped", "rolled_back", "blocked",
     ] = "proposed"
     idempotency_key: str | None = None
+    stage_id: str | None = None
+    checkpoint_before: bool = False
+    optional: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -76,6 +81,12 @@ class ExecutionPolicy(SchemaModel):
     required_approvals_by_risk: dict[RiskClass, int] = Field(default_factory=dict)
     maximum_concurrent_actions: int = Field(default=1, ge=1)
     require_checkpoint_for_risk: set[RiskClass] = Field(default_factory=set)
+    require_target_fingerprint: bool = True
+    allowed_target_patterns: list[str] = Field(default_factory=list)
+    mutation_budget: int | None = Field(default=None, ge=0)
+    maintenance_windows: list[dict[str, Any]] = Field(default_factory=list)
+    capability_grants: set[str] = Field(default_factory=set)
+    break_glass_allowed: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -88,6 +99,10 @@ class PolicyDecision(SchemaModel):
     outcome: Literal["allow", "deny", "approval_required"]
     reasons: list[str] = Field(default_factory=list)
     required_approval_count: int = Field(default=0, ge=0)
+    evaluated_at_iso: str | None = None
+    capability_gaps: list[str] = Field(default_factory=list)
+    requires_checkpoint: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class RecoveryPlan(SchemaModel):
@@ -95,14 +110,19 @@ class RecoveryPlan(SchemaModel):
 
     plan_id: str
     incident_id: str | None = None
+    environment_id: str | None = None
+    operation_type: Literal["startup", "shutdown", "recovery", "maintenance", "verification"] = "recovery"
     objective_id: str
     target_invariant_ids: list[str] = Field(default_factory=list)
     protected_invariant_ids: list[str] = Field(default_factory=list)
     actions: list[ActionInstance] = Field(default_factory=list)
+    verification_condition_ids: list[str] = Field(default_factory=list)
+    verification_conditions: list[VerificationCondition] = Field(default_factory=list)
     mode: Literal["guidance", "dry_run", "guarded_execution"] = "guidance"
     policy_id: str | None = None
     assumptions: list[str] = Field(default_factory=list)
     unsupported_assumptions: list[str] = Field(default_factory=list)
+    created_at_iso: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -113,18 +133,14 @@ class RecoveryPlan(SchemaModel):
         for action in self.actions:
             unknown = set(action.depends_on_action_ids) - action_ids
             if unknown:
-                raise ValueError(
-                    f"action {action.action_id} depends on unknown actions: {sorted(unknown)}"
-                )
+                raise ValueError(f"action {action.action_id} depends on unknown actions: {sorted(unknown)}")
             if action.action_id in action.depends_on_action_ids:
                 raise ValueError(f"action {action.action_id} cannot depend on itself")
         self._assert_acyclic()
         return self
 
     def _assert_acyclic(self) -> None:
-        dependencies = {
-            action.action_id: set(action.depends_on_action_ids) for action in self.actions
-        }
+        dependencies = {action.action_id: set(action.depends_on_action_ids) for action in self.actions}
         ready = [action_id for action_id, deps in dependencies.items() if not deps]
         visited: set[str] = set()
         while ready:

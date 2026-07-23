@@ -45,7 +45,8 @@ class RecoveryCertificate(SchemaModel):
     kind: ClassVar[str] = "RecoveryCertificate"
 
     certificate_id: str
-    incident_id: str
+    incident_id: str | None = None
+    operation_id: str | None = None
     plan_id: str
     status: Literal[
         "recovered",

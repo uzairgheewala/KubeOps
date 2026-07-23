@@ -11,4 +11,5 @@ $env:PYTHONPATH = "$PWD\packages\kubeops_core;$PWD\packages\kubeops_cli;$PWD\con
 python control_plane\manage.py migrate
 python control_plane\manage.py seed_release_01
 python control_plane\manage.py seed_release_02
-Write-Host "KubeOps Release 0.3 is bootstrapped."
+python control_plane\manage.py seed_release_04
+Write-Host "KubeOps Release 0.4 is bootstrapped."

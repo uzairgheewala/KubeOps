@@ -1,154 +1,155 @@
-# KubeOps Release 0.3 — Read-Only Diagnosis Workbench
+# KubeOps Release 0.4 — Guarded Lifecycle and Recovery
 
 ## Summary
 
-Release 0.3 adds active, evidence-driven investigation on top of the immutable
-snapshots, topology, and operational profiles delivered in Release 0.2. It
-introduces no mutation authority.
+Release 0.4 converts the Release 0.3 diagnosis and health foundations into a
+policy-governed lifecycle and recovery runtime. It introduces typed actions,
+dependency-aware lifecycle plans, independent authorization, durable approvals
+and checkpoints, resumable execution, rollback, semantic verification, and
+mode-aware recovery certificates.
 
-The release can now transform violated invariants into normalized symptoms,
-select bounded R0 collectors, derive reusable causal hypotheses, preserve
-contradictions and uncertainty, recommend discriminating probes, refine an
-incident after probe execution, and issue a structured diagnosis certificate.
-The same pipeline is available against live/fixture snapshots and deterministic
-simulations.
+The release is intentionally conservative. The control plane denies live
+execution unless `KUBEOPS_LIVE_EXECUTION_ENABLED=1`, and successful dry-run or
+simulation operations remain `partially_recovered` because they do not prove a
+live environmental transition.
 
 ## Added
 
-### Canonical diagnosis IR
+### Canonical IR
 
-- `EvidenceIntent`
-- `CollectorDefinition`
-- `EvidenceFact`
-- `EvidenceCollectionPlan`
-- `CollectorRunResult`
-- `Symptom`
-- `CausalTemplate`
-- `CausalEdge`
-- `Hypothesis`
-- `ProbeIntent`
-- `ProbePlan`
-- `ProbeRun`
-- `IncidentTimelineEntry`
-- `IncidentInvestigation`
-- `DiagnosisCertificate`
-- `DiagnosticExpectation`
-- `DiagnosticCaseResult`
-- `DiagnosticEvaluationReport`
+- `LifecycleActionTemplate`
+- `LifecycleStageDefinition`
+- `LifecycleProfile`
+- expanded `ActionTypeDefinition`
+- expanded `ActionInstance`
+- expanded `ExecutionPolicy`
+- expanded `PolicyDecision`
+- expanded `RecoveryPlan`
+- `ApprovalRecord`
+- `ActionReceipt`
+- `ExecutionCheckpoint`
+- `OperationEvent`
+- `OperationRun`
+- operation-aware `RecoveryCertificate`
 
-All are schema-versioned Pydantic models and participate in the canonical
-registry and JSON Schema API.
+### Lifecycle planning
 
-### Evidence and collection
+- Declarative startup and shutdown profiles.
+- Stage and action-template DAG validation.
+- Entity selection and parameter rendering from snapshots.
+- Partial-state-aware action omission.
+- Dependency propagation between stages.
+- Compiled verification conditions and protected invariants.
 
-- Semantic evidence intents describe questions rather than commands.
-- Collector definitions declare produced fact types, supported modes, cost,
-  authority, risk, prerequisites, and redaction behavior.
-- All built-in collectors are `R0` and read-only.
-- Collector planning respects evidence budgets and avoids collectors that cannot
-  resolve current hypothesis uncertainty.
-- Evidence facts retain subject, collector, authority, freshness, value,
-  statement, and provenance.
+### Typed actions and executors
 
-### Diagnosis
+- Ten bounded built-in action definitions.
+- Dry-run executor.
+- Simulation executor.
+- Wait executor.
+- Local-process executor with executable allowlisting and no shell expansion.
+- Docker and host-service command adapters.
+- Kubernetes-safe executor.
+- Port-forward executor.
+- Executor registry and capability lookup.
 
-- Deterministic symptom derivation from operational-profile assessments.
-- Reusable causal-template catalog.
-- Support and contradiction scoring.
-- Parent-family and generic-invariant fallback.
-- Multiple simultaneous hypotheses.
-- Explicit `insufficient_evidence`, `unknown_semantics`, and
-  `multiple_plausible_causes` outcomes.
-- Causal-edge generation and diagnosis certificates.
+### Policy and approvals
 
-### Probe planning
+- Environment and target-scope policies.
+- Risk-class gates R0–R5.
+- Required capability evaluation.
+- Mutation budgets.
+- Target-fingerprint verification.
+- Action and operation approvals.
+- Distinct-approver counting.
+- Approval expiry handling.
+- Explicit rejection handling.
+- Checkpoint requirements.
 
-- Missing predicted fact types are computed per unresolved hypothesis.
-- Candidate collectors are filtered by actual fact-production capability.
-- Probe ranking considers information gain, cost, authority, and redundancy.
-- Probe execution appends evidence and receipts, then reruns the deterministic
-  diagnosis pipeline.
+### Durable execution
 
-### Scenario evaluation
+- Atomic file-backed operation journal.
+- Append-oriented operation events.
+- Action receipts with attempts, effects, stdout/stderr, and idempotency keys.
+- Pause, resume, and durable cancellation.
+- Pre-action checkpoints.
+- Idempotency suppression.
+- Bounded retries.
+- Stage-level `stop`, `pause`, `rollback`, and `continue` failure behavior.
+- Rollback action compilation and receipts.
 
-- Deterministic simulation-to-diagnosis adapter.
-- Observation-aware `DiagnosticExpectation` assertions.
-- Case metrics for precision, recall, confidence, and probe count.
-- Aggregate evaluation report support.
-- Declared Release 0.3 basis cases covering full, partial, unknown, and
-  consumer-only observation profiles.
-- Scenario Lab v2 and `/api/v1/scenarios/diagnose`.
+### Verification and artifacts
 
-### Persistence and artifacts
+- Verification over canonical world state and relationships.
+- Protected-invariant failure detection.
+- Mode-aware recovery certificates.
+- Immutable operation artifact chain:
+  - recovery plan;
+  - policy decisions;
+  - approvals;
+  - action receipts;
+  - operation timeline;
+  - checkpoints;
+  - verification results;
+  - recovery certificate;
+  - operation manifest.
+- Deterministic operation-manifest hashing from the persisted operation revision.
 
-Django projections were added for:
+### Django control plane
 
-- incidents;
-- evidence facts;
-- hypotheses;
-- probe runs;
-- incident timeline entries;
-- diagnosis certificates.
+- Relational projections for lifecycle profiles, policies, operations, policy
+  decisions, approvals, receipts, timeline events, checkpoints, verification
+  results, and certificates.
+- Migration `0004_release_04_guarded_lifecycle`.
+- Lifecycle-plan and operation REST APIs.
+- Server-wide live-execution gate, disabled by default.
 
-Every incident persists a content-addressed artifact chain containing the
-canonical investigation, evidence, hypotheses, causal graph, timeline, probes,
-certificate, and manifest.
+### CLI
 
-### API, CLI, and UI
+- `kubeops lifecycle list`
+- `kubeops lifecycle plan`
+- `kubeops policy list`
+- `kubeops policy actions`
+- `kubeops operation create`
+- `kubeops operation approve`
+- `kubeops operation run`
+- `kubeops operation show`
+- `kubeops operation cancel`
 
-Added API routes for:
+### UI
 
-- diagnostic catalog;
-- diagnosis coverage;
-- incident creation/list/detail;
-- probe execution;
-- certificate retrieval;
-- simulated diagnostic evaluation.
+- Operations navigation surface.
+- Lifecycle-plan preview.
+- Stage/action DAG.
+- Policy-decision review.
+- Approval controls.
+- Dry-run and guarded-simulation execution.
+- Pause, resume, cancel, and rollback controls.
+- Receipt, checkpoint, verification, certificate, timeline, and artifact views.
 
-Added CLI commands:
+## Correctness fixes found during implementation
 
-- `diagnostic catalog`
-- `diagnostic evaluate`
-- `incident open`
-- `incident show`
-- `incident probe`
-
-Added UI capabilities:
-
-- incident rail and snapshot-based incident creation;
-- hypothesis comparison;
-- evidence and contradiction inspection;
-- probe planning and execution;
-- causal/timeline/certificate/artifact views;
-- Scenario Lab diagnostic evaluation.
-
-## Correctness fixes made during implementation
-
-- Evidence and hypothesis persistence uniqueness is scoped to an incident,
-  preventing IDs from conflicting across separate investigations.
-- Probe selection now requires a collector to produce a currently missing fact
-  type; a broadly related but non-discriminating collector is not scheduled.
-- Incident artifacts include scope in their content-addressed identity, avoiding
-  collisions between structurally similar investigations.
-- Simulation diagnostics preserve partial-observation semantics instead of
-  inferring hidden truth.
-- Scenario evaluation expectations were made observation-aware so a correct
-  parent-family diagnosis under consumer-only evidence is not treated as a
-  failed leaf diagnosis.
-- Scenario Lab TypeScript uses the canonical `DiagnosticCaseResult` rather than
-  a UI-only evaluation shape.
+- Rejected cyclic lifecycle-stage and action-template graphs during schema
+  validation.
+- Required distinct approvers rather than counting duplicate approval records.
+- Ignored expired approvals and denied active rejections.
+- Preserved simulation/dry-run trust boundaries in recovery certificates.
+- Made operation manifests deterministically reproducible.
+- Treats deletion of an already-absent terminal Job as an idempotent success.
+- Refuses terminal-Job deletion when the Job remains active.
+- Removed duplicate migration constraints before packaging.
 
 ## Compatibility
 
-- All Release 0.1 and Release 0.2 unit behavior remains supported.
-- The API continues to expose previous scenario, environment, snapshot,
-  topology, health, diff, profile, and artifact routes.
-- No existing repository path is intentionally deleted.
-- The distributed archive is a Release 0.2 → 0.3 delta containing only new and
-  modified paths.
+Release 0.4 is additive over Release 0.3. It preserves the existing simulator,
+fixture replay, read-only collection, topology, health, incident, diagnosis,
+probe, and certificate APIs.
 
-## Deliberate boundary
+## Deliberate limitations
 
-Release 0.3 can recommend evidence-gathering probes only. It cannot execute
-mutating probes, create recovery plans, approve actions, or change cluster or
-host state.
+- Live command execution is disabled by default.
+- The initial executor set is intended for local/disposable environments.
+- No unrestricted shell executor exists.
+- No autonomous production remediation exists.
+- Dry-run and simulation cannot issue a `recovered` certificate.
+- Provider-specific recovery depth remains limited until Release 0.5 packs.
