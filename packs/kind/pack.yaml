@@ -1,0 +1,266 @@
+schema_version: kubeops.io/v1
+pack_id: kind
+version: 1.0.0
+title: Kind
+pack_kind: provider
+description: Kind control-plane containers and local cluster lifecycle.
+api_version: kubeops.io/pack/v1
+priority: 20
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+- schema_version: kubeops.io/v1
+  pack_id: docker-host
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires docker-host semantic contracts from the Release 0.5 pack API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- kind_lifecycle
+- kind_discovery
+supported_entity_types: []
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: kind.control-plane-node.v1
+    priority: 100
+    resource_kinds:
+    - Node
+    namespaces: []
+    name_regex: control-plane
+    label_equals: {}
+    annotation_equals: {}
+    set_entity_type: provider.kind.control_plane
+    set_plane: control_plane
+    set_provider: kind
+    add_capabilities:
+    - docker.container
+    - kind.control_plane
+    extension_namespace: kind
+    extension_values: {}
+  relationship_resolvers: []
+  operational_profiles: []
+  evidence_intents:
+  - schema_version: kubeops.io/v1
+    intent_id: kind.control-plane.state.v1
+    title: Is the Kind control-plane container running and exposing the API?
+    question: Is the Kind control-plane container running and exposing the API?
+    questions_answered:
+    - component_state
+    subject_ids: []
+    required_fact_types:
+    - entity.state
+    preferred_collector_ids:
+    - kind.control-plane.snapshot.v1
+    required_authority: authoritative
+    cost_class: low
+    risk_class: R0
+    stopping_condition: all_required_facts
+    metadata: {}
+  collectors:
+  - schema_version: kubeops.io/v1
+    collector_id: kind.control-plane.snapshot.v1
+    title: Kind control-plane state
+    description: ''
+    questions_answered:
+    - component_state
+    fact_types:
+    - entity.state
+    supported_modes:
+    - fixture
+    - live
+    required_capabilities: []
+    supported_entity_types:
+    - provider.kind.control_plane
+    supported_planes: []
+    required_inputs:
+    - snapshot
+    handler_id: entity_state
+    authority: authoritative
+    cost_class: low
+    risk_class: R0
+    metadata:
+      pack_managed: true
+  causal_templates:
+  - schema_version: kubeops.io/v1
+    template_id: kind.control-plane.unavailable.v1
+    family_id: kind.control_plane_unavailable
+    title: Kind control plane unavailable
+    claim_template: Kind control plane unavailable affects {subject}.
+    parent_family_id: operational.invariant_violation
+    invariant_families:
+    - liveness
+    symptom_types: []
+    supporting_fact_types:
+    - invariant.violated
+    - entity.state
+    contradicting_fact_types: []
+    predicted_fact_types:
+    - entity.state
+    evidence_intent_ids:
+    - kind.control-plane.state.v1
+    specificity: 6
+    generic: false
+    metadata:
+      supported_entity_types:
+      - provider.kind.control_plane
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: kind.control-plane.start.v1
+    title: Start Kind control plane
+    description: ''
+    parameter_schema:
+      required:
+      - container
+      properties:
+        container:
+          type: string
+    preconditions: []
+    expected_effects:
+    - kubernetes_api_reachable
+    possible_side_effects: []
+    required_capabilities:
+    - docker.container.start
+    supported_modes:
+    - simulation
+    - live
+    executor_id: docker.cli
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R1
+      blast_radius: single_component
+      availability_risk: bounded
+      data_risk: none
+      security_risk: none
+      reversible: true
+      idempotent: true
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    rollback_action_type_id: kind.control-plane.stop.v1
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  - schema_version: kubeops.io/v1
+    action_type_id: kind.control-plane.stop.v1
+    title: Stop Kind control plane
+    description: ''
+    parameter_schema:
+      required:
+      - container
+      properties:
+        container:
+          type: string
+    preconditions: []
+    expected_effects:
+    - cluster_quiesced
+    possible_side_effects: []
+    required_capabilities:
+    - docker.container.stop
+    supported_modes:
+    - simulation
+    - live
+    executor_id: docker.cli
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R2
+      blast_radius: single_component
+      availability_risk: temporary
+      data_risk: none
+      security_risk: none
+      reversible: true
+      idempotent: false
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    rollback_action_type_id: kind.control-plane.start.v1
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles:
+  - schema_version: kubeops.io/v1
+    profile_id: kind-provider-startup.v1
+    version: 1.0.0
+    title: Start Kind provider
+    description: ''
+    operation_type: startup
+    environment_classes:
+    - development
+    - test
+    target_operational_profile_id: cluster-observable.v1
+    stages:
+    - schema_version: kubeops.io/v1
+      stage_id: control-plane
+      title: Kind control plane
+      description: ''
+      depends_on_stage_ids: []
+      action_templates:
+      - schema_version: kubeops.io/v1
+        template_id: start-control-plane
+        action_type_id: kind.control-plane.start.v1
+        title: Start Kind control-plane container
+        target_selector:
+          entity_type: provider.kind.control_plane
+        parameters:
+          container: ${entity_name}
+        depends_on_template_ids: []
+        apply_when: []
+        skip_when: []
+        optional: false
+        metadata:
+          pack_id: kind
+      entry_conditions: []
+      completion_conditions: []
+      allow_parallel_actions: false
+      timeout_seconds: 300
+      on_failure: stop
+    protected_invariant_ids: []
+    default_policy_id: local-development-guarded.v1
+    metadata:
+      pack_id: kind
+  verification_templates:
+  - schema_version: kubeops.io/v1
+    condition_id: kind.api.reachable.v1
+    title: Kind API is reachable
+    predicate:
+      schema_version: kubeops.io/v1
+      predicate_type: field_equals
+      entity_id: ${entity_id}
+      path: observed_state.ready
+      value: true
+    temporal:
+      schema_version: kubeops.io/v1
+      operator: immediate
+    level: dependency_restoration
+    required: true
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - dependency.endpoint_unreachable
+    - kind.control_plane_unavailable
+    invariant_families:
+    - liveness
+    - reachability
+    disturbance_mechanisms: []
+    topology_patterns:
+    - host_to_cluster
+    support_level: verified
+metadata: {}

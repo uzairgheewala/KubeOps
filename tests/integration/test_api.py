@@ -21,6 +21,8 @@ def configure_paths(repo_root: Path, tmp_path: Path):
         KUBEOPS_LIFECYCLE_DIR=repo_root / "lifecycle",
         KUBEOPS_POLICY_DIR=repo_root / "policies",
         KUBEOPS_OPERATION_DIR=tmp_path / "operations",
+        KUBEOPS_PACK_DIR=repo_root / "packs",
+        KUBEOPS_ENABLED_PACKS=[],
         KUBEOPS_LIVE_EXECUTION_ENABLED=False,
     ):
         clear_service_caches()
@@ -34,7 +36,7 @@ def test_status_profiles_and_family_endpoints(db) -> None:
     assert status_response.status_code == 200
     status_payload = status_response.json()
     assert status_payload["mode"] == "guarded_lifecycle_recovery"
-    assert status_payload["release"] == "0.4.0"
+    assert status_payload["release"] == "0.5.0"
     assert status_payload["profile_count"] >= 2
     assert "immutable_snapshots" in status_payload["capabilities"]
     assert "probe_planning" in status_payload["capabilities"]
@@ -42,6 +44,9 @@ def test_status_profiles_and_family_endpoints(db) -> None:
     assert status_payload["action_type_count"] >= 10
     assert status_payload["lifecycle_profile_count"] >= 2
     assert "durable_execution" in status_payload["capabilities"]
+    assert status_payload["pack_count"] == 11
+    assert status_payload["active_pack_count"] == 11
+    assert "knowledge_packs" in status_payload["capabilities"]
 
     catalog_response = client.get("/api/v1/diagnostic-catalog")
     assert catalog_response.status_code == 200
@@ -367,3 +372,33 @@ def test_release_04_catalog_seeder(db) -> None:
     assert ExecutionPolicyRecord.objects.count() >= 2
     assert LifecycleProfileRecord.objects.filter(profile_id="local-development-startup.v1").exists()
     assert ExecutionPolicyRecord.objects.filter(policy_id="local-development-guarded.v1").exists()
+
+
+def test_release_05_pack_endpoints_and_seeder(db) -> None:
+    from django.core.management import call_command
+    from api.models import KnowledgePackRecord
+
+    client = Client()
+    response = client.get("/api/v1/packs")
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["packs"]) == 11
+    assert payload["resolution"]["blocked_pack_ids"] == []
+    assert payload["resolution"]["contribution_counts"]["action_types"] == 12
+
+    detail = client.get("/api/v1/packs/kind")
+    assert detail.status_code == 200
+    assert detail.json()["manifest"]["pack_kind"] == "provider"
+    assert {item["pack_id"] for item in detail.json()["manifest"]["dependencies"]} == {"generic-kubernetes", "docker-host"}
+
+    resolution = client.post("/api/v1/packs/resolve", data={"pack_ids": ["kind"]}, content_type="application/json")
+    assert resolution.status_code == 200
+    assert resolution.json()["active_pack_ids"] == ["generic-kubernetes", "docker-host", "kind"]
+
+    coverage = client.get("/api/v1/packs/coverage")
+    assert coverage.status_code == 200
+    assert "kind.control_plane_unavailable" in coverage.json()["family_support"]
+
+    call_command("seed_release_05", verbosity=0)
+    assert KnowledgePackRecord.objects.count() == 11
+    assert KnowledgePackRecord.objects.filter(pack_id="kind", state="active", enabled=True).exists()

@@ -96,4 +96,6 @@ KUBEOPS_PROFILE_DIR = repo_path("KUBEOPS_PROFILE_DIR", REPO_ROOT / "profiles")
 KUBEOPS_LIFECYCLE_DIR = repo_path("KUBEOPS_LIFECYCLE_DIR", REPO_ROOT / "lifecycle")
 KUBEOPS_POLICY_DIR = repo_path("KUBEOPS_POLICY_DIR", REPO_ROOT / "policies")
 KUBEOPS_OPERATION_DIR = repo_path("KUBEOPS_OPERATION_DIR", REPO_ROOT / "operations")
+KUBEOPS_PACK_DIR = repo_path("KUBEOPS_PACK_DIR", REPO_ROOT / "packs")
+KUBEOPS_ENABLED_PACKS = [item.strip() for item in os.getenv("KUBEOPS_ENABLED_PACKS", "").split(",") if item.strip()]
 KUBEOPS_LIVE_EXECUTION_ENABLED = os.getenv("KUBEOPS_LIVE_EXECUTION_ENABLED", "0") == "1"

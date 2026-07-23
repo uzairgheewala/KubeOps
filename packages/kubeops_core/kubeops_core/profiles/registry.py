@@ -19,6 +19,13 @@ class OperationalProfileRegistry:
         self._profiles[profile.profile_id] = profile
         self._sources[profile.profile_id] = source
 
+    def load_pack_runtime(self, pack_runtime) -> int:
+        count = 0
+        for profile in pack_runtime.operational_profiles():
+            self.register(profile, source=f"pack:{profile.metadata.get('pack_id', 'unknown')}")
+            count += 1
+        return count
+
     def load_directory(self, directory: str | Path) -> int:
         count = 0
         for path in sorted(Path(directory).glob("*.yaml")):

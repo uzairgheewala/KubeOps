@@ -19,6 +19,10 @@ from .views import (
     IncidentProbeRunView,
     LifecycleProfileDetailView,
     LifecycleProfileListView,
+    KnowledgePackListView,
+    KnowledgePackDetailView,
+    KnowledgePackResolveView,
+    KnowledgePackCoverageView,
     OperationalProfileDetailView,
     OperationalProfileListView,
     OperationApprovalView,
@@ -51,6 +55,10 @@ from .views import (
 
 urlpatterns = [
     path("system/status", SystemStatusView.as_view(), name="system-status"),
+    path("packs", KnowledgePackListView.as_view(), name="pack-list"),
+    path("packs/resolve", KnowledgePackResolveView.as_view(), name="pack-resolve"),
+    path("packs/coverage", KnowledgePackCoverageView.as_view(), name="pack-coverage"),
+    path("packs/<path:pack_id>", KnowledgePackDetailView.as_view(), name="pack-detail"),
     path("registry", RegistryView.as_view(), name="registry"),
     path("schemas/<str:schema_name>", SchemaView.as_view(), name="schema-detail"),
     path("operational-profiles", OperationalProfileListView.as_view(), name="operational-profile-list"),

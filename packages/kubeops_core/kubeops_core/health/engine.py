@@ -27,7 +27,7 @@ from kubeops_core.util import get_path, utc_now_iso
 
 
 def _matches(entity: OperationalEntity, selector: EntitySelector) -> bool:
-    if selector.entity_types and entity.entity_type not in selector.entity_types:
+    if selector.entity_types and not ({entity.entity_type, *entity.entity_type_lineage} & selector.entity_types):
         return False
     if selector.planes and str(entity.plane) not in selector.planes:
         return False

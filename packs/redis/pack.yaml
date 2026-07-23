@@ -1,0 +1,215 @@
+schema_version: kubeops.io/v1
+pack_id: redis
+version: 1.0.0
+title: Redis
+pack_kind: application
+description: Redis discovery, health, diagnosis and bounded recovery semantics.
+api_version: kubeops.io/pack/v1
+priority: 40
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- diagnose
+- health
+- classify
+- execute
+supported_entity_types:
+- application.redis
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: redis.component.v1
+    priority: 100
+    resource_kinds:
+    - DaemonSet
+    - Deployment
+    - StatefulSet
+    namespaces: []
+    name_regex: redis
+    label_equals: {}
+    annotation_equals: {}
+    set_entity_type: application.redis
+    set_plane: application
+    set_provider: redis
+    add_capabilities:
+    - redis.component
+    extension_namespace: redis
+    extension_values: {}
+  relationship_resolvers: []
+  operational_profiles:
+  - schema_version: kubeops.io/v1
+    profile_id: redis-serviceable.v1
+    version: 1.0.0
+    title: Redis serviceable
+    description: ''
+    environment_classes: []
+    objective_ids:
+    - redis.v1
+    invariant_templates:
+    - schema_version: kubeops.io/v1
+      template_id: redis-serviceable.v1.required
+      title: Redis serviceable
+      description: The selected workload controller has its desired ready capacity
+        available.
+      family: readiness
+      selector:
+        schema_version: kubeops.io/v1
+        entity_types:
+        - application.redis
+        planes:
+        - application
+        namespaces: []
+        names: []
+        labels: {}
+        exclude_namespaces: []
+        include_cluster_scoped: true
+      check_type: workload_available
+      parameters: {}
+      severity: error
+      temporal:
+        schema_version: kubeops.io/v1
+        operator: immediate
+      required: true
+      affected_objectives:
+      - redis-serviceable.v1
+    metadata: {}
+  evidence_intents:
+  - schema_version: kubeops.io/v1
+    intent_id: redis.service.state.v1
+    title: Inspect Redis semantic state
+    question: Inspect Redis semantic state
+    questions_answered:
+    - component_state
+    subject_ids: []
+    required_fact_types:
+    - entity.state
+    preferred_collector_ids:
+    - redis.service.snapshot.v1
+    required_authority: authoritative
+    cost_class: low
+    risk_class: R0
+    stopping_condition: all_required_facts
+    metadata: {}
+  collectors:
+  - schema_version: kubeops.io/v1
+    collector_id: redis.service.snapshot.v1
+    title: Redis state
+    description: Collect normalized read-only state for Redis workload controllers.
+    questions_answered:
+    - component_state
+    fact_types:
+    - entity.state
+    supported_modes:
+    - live
+    - fixture
+    required_capabilities: []
+    supported_entity_types:
+    - application.redis
+    supported_planes: []
+    required_inputs:
+    - snapshot
+    handler_id: entity_state
+    authority: authoritative
+    cost_class: low
+    risk_class: R0
+    metadata:
+      pack_managed: true
+  causal_templates:
+  - schema_version: kubeops.io/v1
+    template_id: redis.not_serviceable.v1
+    family_id: redis.not_serviceable
+    title: Redis not serviceable
+    claim_template: Redis not serviceable affects {subject}.
+    parent_family_id: operational.invariant_violation
+    invariant_families:
+    - readiness
+    symptom_types: []
+    supporting_fact_types:
+    - entity.state
+    - invariant.violated
+    contradicting_fact_types: []
+    predicted_fact_types:
+    - entity.state
+    evidence_intent_ids:
+    - redis.service.state.v1
+    specificity: 6
+    generic: false
+    metadata:
+      supported_entity_types:
+      - application.redis
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: redis.rollout_restart.v1
+    title: Recover Redis
+    description: Execute the bounded Redis recovery action through the registered
+      safe adapter.
+    parameter_schema:
+      required:
+      - kind
+      - name
+      - namespace
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+    preconditions: []
+    expected_effects:
+    - redis_serviceable
+    possible_side_effects:
+    - temporary_unavailability
+    required_capabilities:
+    - kubernetes.workload.restart
+    supported_modes:
+    - live
+    - simulation
+    executor_id: kubectl.safe
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R2
+      blast_radius: single_component
+      availability_risk: temporary
+      data_risk: none
+      security_risk: none
+      reversible: false
+      idempotent: false
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles: []
+  verification_templates: []
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - redis.not_serviceable
+    - component.not_serviceable
+    invariant_families:
+    - readiness
+    disturbance_mechanisms: []
+    topology_patterns:
+    - shared_dependency
+    support_level: executable
+metadata: {}

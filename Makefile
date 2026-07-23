@@ -4,21 +4,23 @@ bootstrap:
 	python -m venv .venv
 	. .venv/bin/activate && pip install --upgrade pip && pip install -r requirements-dev.txt
 	cd ui && npm install
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_05
 
 migrate:
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
 
 seed:
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_05
 
 api:
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py runserver 0.0.0.0:8000
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py runserver 0.0.0.0:8000
 
 ui:
 	cd ui && npm run dev -- --host 0.0.0.0
@@ -27,7 +29,7 @@ cli:
 	./scripts/kubeops.sh
 
 test-python:
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane pytest
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane pytest
 
 test-ui:
 	cd ui && npm run build
@@ -35,8 +37,8 @@ test-ui:
 test: test-python test-ui
 
 lint:
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane ruff check packages control_plane tests
-	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane mypy packages/kubeops_core/kubeops_core
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane ruff check packages control_plane tests
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane mypy packages/kubeops_core/kubeops_core
 	cd ui && npm run lint
 
 format:

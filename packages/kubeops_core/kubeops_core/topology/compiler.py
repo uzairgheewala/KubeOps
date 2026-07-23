@@ -46,7 +46,10 @@ def _relationship(
 
 
 class TopologyCompiler:
-    """Compile Kubernetes object references into a typed operational graph."""
+    """Compile Kubernetes object references and pack resolvers into an operational graph."""
+
+    def __init__(self, pack_runtime=None) -> None:
+        self.pack_runtime = pack_runtime
 
     def compile_bundle(self, bundle: DiscoveryBundle) -> TopologyGraph:
         return self._compile(
@@ -96,6 +99,9 @@ class TopologyCompiler:
         self._compile_ingresses(by_kind, by_kind_ns_name, add)
         self._compile_storage(by_kind, by_kind_ns_name, add)
         self._compile_rbac(by_kind, by_kind_ns_name, add)
+        if self.pack_runtime is not None:
+            for relationship in self.pack_runtime.resolve_relationships(entities):
+                add(relationship)
 
         rels = sorted(relationships.values(), key=lambda item: item.relationship_id)
         layers: dict[str, list[str]] = defaultdict(list)
@@ -119,6 +125,7 @@ class TopologyCompiler:
                 "relationship_types": dict(sorted(rel_types.items())),
                 "namespace_count": len({entity.namespace for entity in entities if entity.namespace}),
                 "warning_count": len(warnings),
+                "active_pack_count": len(self.pack_runtime.active_pack_ids) if self.pack_runtime is not None else 0,
             },
             warnings=warnings,
         )

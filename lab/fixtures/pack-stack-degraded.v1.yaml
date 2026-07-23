@@ -1,0 +1,748 @@
+source_fingerprint: fixture:release-05-pack-stack
+metadata:
+  title: Release 0.5 pack-aware application stack fixture
+  cluster_version: v1.31.0
+  purpose: exercise provider, platform, and application pack semantics
+resources:
+  namespaces:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: default
+      uid: uid-ns-default
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+    status:
+      phase: Active
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: kube-system
+      uid: uid-ns-system
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+    status:
+      phase: Active
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: demo
+      uid: uid-ns-demo
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+    status:
+      phase: Active
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: argocd
+      uid: uid-ns-argocd
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+    status:
+      phase: Active
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ingress-nginx
+      uid: uid-ns-ingress-nginx
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+    status:
+      phase: Active
+  nodes:
+  - apiVersion: v1
+    kind: Node
+    metadata:
+      name: kind-control-plane
+      uid: uid-node
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        kubernetes.io/hostname: kind-control-plane
+    spec: {}
+    status:
+      conditions:
+      - type: Ready
+        status: 'True'
+        reason: KubeletReady
+      capacity:
+        cpu: '4'
+        memory: 8Gi
+      allocatable:
+        cpu: 3800m
+        memory: 7Gi
+  deployments.apps:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: coredns
+      uid: uid-deploy-coredns
+      resourceVersion: '1'
+      generation: 2
+      labels:
+        k8s-app: kube-dns
+      namespace: kube-system
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          k8s-app: kube-dns
+    status:
+      observedGeneration: 2
+      replicas: 1
+      readyReplicas: 1
+      availableReplicas: 1
+      updatedReplicas: 1
+      conditions:
+      - type: Available
+        status: 'True'
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+      uid: uid-deploy-web
+      resourceVersion: '1'
+      generation: 3
+      labels:
+        app: web
+      namespace: demo
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: web
+    status:
+      observedGeneration: 3
+      replicas: 2
+      readyReplicas: 1
+      availableReplicas: 1
+      updatedReplicas: 2
+      conditions:
+      - type: Available
+        status: 'True'
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: argocd-server
+      namespace: argocd
+      uid: uid-deployment-argocd-server
+      resourceVersion: '1'
+      generation: 1
+      labels: &id001
+        app: argocd-server
+        argocd.argoproj.io/instance: pack-stack
+      annotations: {}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels: *id001
+    status:
+      observedGeneration: 1
+      replicas: 1
+      readyReplicas: 1
+      availableReplicas: 1
+      updatedReplicas: 1
+      conditions:
+      - type: Available
+        status: 'True'
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ingress-nginx-controller
+      namespace: ingress-nginx
+      uid: uid-deployment-ingress-nginx-controller
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: ingress-nginx-controller
+      annotations: {}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: ingress-nginx-controller
+    status:
+      observedGeneration: 1
+      replicas: 1
+      readyReplicas: 1
+      availableReplicas: 1
+      updatedReplicas: 1
+      conditions:
+      - type: Available
+        status: 'True'
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: django-api
+      namespace: demo
+      uid: uid-deployment-django-api
+      resourceVersion: '1'
+      generation: 1
+      labels: &id002
+        app: django-api
+        argocd.argoproj.io/instance: pack-stack
+      annotations:
+        kubeops.io/requires: demo/postgres
+    spec:
+      replicas: 1
+      selector:
+        matchLabels: *id002
+    status:
+      observedGeneration: 1
+      replicas: 1
+      readyReplicas: 0
+      availableReplicas: 0
+      updatedReplicas: 1
+      conditions:
+      - type: Available
+        status: 'False'
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: celery-worker
+      namespace: demo
+      uid: uid-deployment-celery-worker
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: celery-worker
+      annotations:
+        kubeops.io/requires: demo/redis
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: celery-worker
+    status:
+      observedGeneration: 1
+      replicas: 1
+      readyReplicas: 0
+      availableReplicas: 0
+      updatedReplicas: 1
+      conditions:
+      - type: Available
+        status: 'False'
+  replicasets.apps:
+  - apiVersion: apps/v1
+    kind: ReplicaSet
+    metadata:
+      name: coredns-abc
+      uid: uid-rs-coredns
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        k8s-app: kube-dns
+      namespace: kube-system
+      ownerReferences:
+      - apiVersion: apps/v1
+        kind: Deployment
+        name: coredns
+        uid: uid-deploy-coredns
+        controller: true
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          k8s-app: kube-dns
+    status:
+      observedGeneration: 1
+      replicas: 1
+      readyReplicas: 1
+      availableReplicas: 1
+  - apiVersion: apps/v1
+    kind: ReplicaSet
+    metadata:
+      name: web-abc
+      uid: uid-rs-web
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: web
+      namespace: demo
+      ownerReferences:
+      - apiVersion: apps/v1
+        kind: Deployment
+        name: web
+        uid: uid-deploy-web
+        controller: true
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: web
+    status:
+      observedGeneration: 1
+      replicas: 2
+      readyReplicas: 1
+      availableReplicas: 1
+  pods:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: coredns-abc-1
+      uid: uid-pod-coredns
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        k8s-app: kube-dns
+      namespace: kube-system
+      ownerReferences:
+      - apiVersion: apps/v1
+        kind: ReplicaSet
+        name: coredns-abc
+        uid: uid-rs-coredns
+        controller: true
+    spec:
+      nodeName: kind-control-plane
+      serviceAccountName: coredns
+      containers:
+      - name: coredns
+        image: coredns:1.11
+    status:
+      phase: Running
+      podIP: 10.244.0.2
+      hostIP: 172.18.0.2
+      conditions:
+      - type: Ready
+        status: 'True'
+      containerStatuses:
+      - name: coredns
+        ready: true
+        restartCount: 0
+        state:
+          running: {}
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: web-abc-1
+      uid: uid-pod-web1
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: web
+      namespace: demo
+      ownerReferences:
+      - apiVersion: apps/v1
+        kind: ReplicaSet
+        name: web-abc
+        uid: uid-rs-web
+        controller: true
+    spec:
+      nodeName: kind-control-plane
+      serviceAccountName: web
+      volumes:
+      - name: config
+        configMap:
+          name: web-config
+      - name: secret
+        secret:
+          secretName: web-secret
+      - name: data
+        persistentVolumeClaim:
+          claimName: web-data
+      containers:
+      - name: web
+        image: example/web:v1
+        envFrom:
+        - configMapRef:
+            name: web-config
+        - secretRef:
+            name: web-secret
+    status:
+      phase: Running
+      podIP: 10.244.0.3
+      hostIP: 172.18.0.2
+      conditions:
+      - type: Ready
+        status: 'True'
+      containerStatuses:
+      - name: web
+        ready: true
+        restartCount: 0
+        state:
+          running: {}
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: web-abc-2
+      uid: uid-pod-web2
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: web
+      namespace: demo
+      ownerReferences:
+      - apiVersion: apps/v1
+        kind: ReplicaSet
+        name: web-abc
+        uid: uid-rs-web
+        controller: true
+    spec:
+      nodeName: kind-control-plane
+      serviceAccountName: web
+      containers:
+      - name: web
+        image: example/web:v1
+    status:
+      phase: Running
+      podIP: 10.244.0.4
+      hostIP: 172.18.0.2
+      conditions:
+      - type: Ready
+        status: 'False'
+        reason: ReadinessProbeFailed
+      containerStatuses:
+      - name: web
+        ready: false
+        restartCount: 2
+        state:
+          running: {}
+  services:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: kube-dns
+      uid: uid-svc-dns
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        k8s-app: kube-dns
+      namespace: kube-system
+    spec:
+      selector:
+        k8s-app: kube-dns
+      ports:
+      - port: 53
+        targetPort: 53
+      type: ClusterIP
+    status: {}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: web
+      uid: uid-svc-web
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: web
+      namespace: demo
+    spec:
+      selector:
+        app: web
+      ports:
+      - port: 80
+        targetPort: 8080
+      type: ClusterIP
+    status: {}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: postgres
+      namespace: demo
+      uid: uid-svc-postgres
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: postgres
+    spec:
+      selector:
+        app: postgres
+      ports:
+      - port: 5432
+        targetPort: 5432
+    status: {}
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: redis
+      namespace: demo
+      uid: uid-svc-redis
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: redis
+    spec:
+      selector:
+        app: redis
+      ports:
+      - port: 6379
+        targetPort: 6379
+    status: {}
+  endpointslices.discovery.k8s.io:
+  - apiVersion: discovery.k8s.io/v1
+    kind: EndpointSlice
+    metadata:
+      name: web-xyz
+      uid: uid-eps-web
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        kubernetes.io/service-name: web
+      namespace: demo
+    addressType: IPv4
+    ports:
+    - port: 8080
+    endpoints:
+    - addresses:
+      - 10.244.0.3
+      conditions:
+        ready: true
+      targetRef:
+        kind: Pod
+        name: web-abc-1
+        namespace: demo
+        uid: uid-pod-web1
+    - addresses:
+      - 10.244.0.4
+      conditions:
+        ready: false
+      targetRef:
+        kind: Pod
+        name: web-abc-2
+        namespace: demo
+        uid: uid-pod-web2
+  ingresses.networking.k8s.io:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: web
+      uid: uid-ing-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+    spec:
+      rules:
+      - host: web.local
+        http:
+          paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+    status:
+      loadBalancer:
+        ingress:
+        - ip: 127.0.0.1
+  configmaps:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: web-config
+      uid: uid-cm-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+    data:
+      LOG_LEVEL: info
+  secrets:
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: web-secret
+      uid: uid-secret-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+    type: Opaque
+    data:
+      DATABASE_PASSWORD: c2VjcmV0
+  serviceaccounts:
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: default
+      uid: uid-sa-default
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: web
+      uid: uid-sa-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: coredns
+      uid: uid-sa-coredns
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: kube-system
+  roles.rbac.authorization.k8s.io:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: web-reader
+      uid: uid-role-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+    rules:
+    - apiGroups:
+      - ''
+      resources:
+      - configmaps
+      verbs:
+      - get
+      - list
+  rolebindings.rbac.authorization.k8s.io:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: web-reader
+      uid: uid-rb-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+    subjects:
+    - kind: ServiceAccount
+      name: web
+      namespace: demo
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: web-reader
+  persistentvolumes:
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: pv-web
+      uid: uid-pv-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+    spec:
+      capacity:
+        storage: 1Gi
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: standard
+      claimRef:
+        namespace: demo
+        name: web-data
+    status:
+      phase: Bound
+  persistentvolumeclaims:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: web-data
+      uid: uid-pvc-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      storageClassName: standard
+      volumeName: pv-web
+    status:
+      phase: Bound
+  storageclasses.storage.k8s.io:
+  - apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: standard
+      uid: uid-sc-standard
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+    provisioner: rancher.io/local-path
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+  events:
+  - apiVersion: v1
+    kind: Event
+    metadata:
+      name: web-unready.1
+      uid: uid-event-web
+      resourceVersion: '1'
+      generation: 1
+      labels: {}
+      namespace: demo
+    involvedObject:
+      kind: Pod
+      namespace: demo
+      name: web-abc-2
+      uid: uid-pod-web2
+    reason: Unhealthy
+    message: Readiness probe failed
+    type: Warning
+    count: 2
+  statefulsets.apps:
+  - apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      name: postgres
+      namespace: demo
+      uid: uid-statefulset-postgres
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: postgres
+      annotations: {}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: postgres
+    status:
+      observedGeneration: 1
+      replicas: 1
+      readyReplicas: 1
+      availableReplicas: 1
+      updatedReplicas: 1
+      conditions:
+      - type: Available
+        status: 'True'
+  - apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      name: redis
+      namespace: demo
+      uid: uid-statefulset-redis
+      resourceVersion: '1'
+      generation: 1
+      labels:
+        app: redis
+      annotations: {}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: redis
+    status:
+      observedGeneration: 1
+      replicas: 1
+      readyReplicas: 1
+      availableReplicas: 1
+      updatedReplicas: 1
+      conditions:
+      - type: Available
+        status: 'True'
+permission_gaps: []
+issues: []

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kubeops-core"
-version = "0.4.0"
-description = "Canonical operational IR, scenario compiler, and deterministic simulator for KubeOps"
+version = "0.5.0"
+description = "Canonical operational IR and knowledge-pack runtime for KubeOps"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.10,<3",

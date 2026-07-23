@@ -447,3 +447,27 @@ class RecoveryCertificateRecord(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class KnowledgePackRecord(models.Model):
+    pack_id = models.CharField(max_length=255, unique=True)
+    version = models.CharField(max_length=64)
+    title = models.CharField(max_length=255)
+    pack_kind = models.CharField(max_length=32)
+    state = models.CharField(max_length=32, default="discovered")
+    enabled = models.BooleanField(default=True)
+    source_path = models.TextField(blank=True)
+    manifest_hash = models.CharField(max_length=64)
+    contribution_counts = models.JSONField(default=dict)
+    capabilities = models.JSONField(default=list)
+    payload = models.JSONField()
+    validation_issues = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["pack_kind", "pack_id"]
+        indexes = [
+            models.Index(fields=["state", "enabled"]),
+            models.Index(fields=["pack_kind", "pack_id"]),
+        ]

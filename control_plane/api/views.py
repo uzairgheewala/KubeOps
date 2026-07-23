@@ -42,6 +42,18 @@ from kubeops_core.models import (
     EvidenceIntent,
     ExecutionPolicy,
     Hypothesis,
+    KnowledgePackManifest,
+    PackCompatibility,
+    PackContributions,
+    PackCoverageReport,
+    PackDependency,
+    PackResolution,
+    PackScenarioCoverage,
+    PackStatus,
+    PackValidationIssue,
+    EntityClassifierRule,
+    RelationshipResolverRule,
+    RedactionRule,
     IncidentInvestigation,
     IncidentTimelineEntry,
     InvariantDefinition,
@@ -97,6 +109,7 @@ from .models import (
     ExecutionCheckpointRecord,
     OperationVerificationRecord,
     RecoveryCertificateRecord,
+    KnowledgePackRecord,
     LifecycleProfileRecord,
     ExecutionPolicyRecord,
     OperationalProfileRecord,
@@ -122,6 +135,8 @@ from .services import (
     scenario_diagnosis_evaluator,
     scenario_registry,
     simulation_engine,
+    pack_manager,
+    pack_runtime,
 )
 
 
@@ -502,16 +517,69 @@ def _snapshot_summary(record: EnvironmentSnapshotRecord) -> dict[str, Any]:
     }
 
 
+
+class KnowledgePackListView(APIView):
+    def get(self, request: Request) -> Response:
+        manager = pack_manager()
+        resolution = pack_runtime().resolution
+        status_by_id = {item.pack_id: item for item in resolution.statuses}
+        payload = []
+        for manifest in manager.values():
+            status_item = status_by_id.get(manifest.pack_id)
+            payload.append({
+                "manifest": manifest.model_dump(mode="json"),
+                "source": manager.source(manifest.pack_id),
+                "status": status_item.model_dump(mode="json") if status_item else None,
+            })
+        return Response({
+            "packs": payload,
+            "resolution": resolution.model_dump(mode="json"),
+            "coverage": pack_runtime().coverage_report().model_dump(mode="json"),
+        })
+
+
+class KnowledgePackDetailView(APIView):
+    def get(self, request: Request, pack_id: str) -> Response:
+        try:
+            manifest = pack_manager().get(pack_id)
+        except KeyError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        resolution = pack_manager().resolve([pack_id])
+        return Response({
+            "manifest": manifest.model_dump(mode="json"),
+            "source": pack_manager().source(pack_id),
+            "resolution": resolution.model_dump(mode="json"),
+            "issues": [item.model_dump(mode="json") for item in pack_manager().validate(pack_id)],
+        })
+
+
+class KnowledgePackResolveView(APIView):
+    def post(self, request: Request) -> Response:
+        requested = request.data.get("pack_ids")
+        try:
+            resolution = pack_manager().resolve(list(requested) if requested else None)
+        except (KeyError, ValueError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        return Response(resolution.model_dump(mode="json"))
+
+
+class KnowledgePackCoverageView(APIView):
+    def get(self, request: Request) -> Response:
+        return Response(pack_runtime().coverage_report().model_dump(mode="json"))
+
+
 class SystemStatusView(APIView):
     def get(self, request: Request) -> Response:
         return Response(
             {
                 "service": "kubeops-control-plane",
-                "release": "0.4.0",
+                "release": "0.5.0",
                 "core_version": core_version,
                 "mode": "guarded_lifecycle_recovery",
                 "status": "ok",
                 "family_count": len(scenario_registry()),
+                "pack_count": len(pack_manager().values()),
+                "active_pack_count": len(pack_runtime().active_pack_ids),
                 "profile_count": len(profile_registry()),
                 "environment_count": EnvironmentRecord.objects.filter(active=True).count(),
                 "incident_count": IncidentRecord.objects.count(),
@@ -557,6 +625,14 @@ class SystemStatusView(APIView):
                     "rollback",
                     "semantic_verification",
                     "recovery_certificates",
+                    "knowledge_packs",
+                    "pack_dependency_resolution",
+                    "pack_compatibility_validation",
+                    "provider_pack_specialization",
+                    "component_pack_specialization",
+                    "pack_redaction",
+                    "pack_scenario_coverage",
+                    "pack_authoring_sdk",
                 ],
             }
         )
@@ -586,7 +662,10 @@ class SchemaView(APIView):
             RunArtifact, OperationalArtifact, AccessMethodDefinition, EnvironmentDefinition,
             AccessValidationResult, DiscoveryBundle, EnvironmentSnapshot, SnapshotDiff,
             TopologyGraph, OperationalProfileSpec, CompiledOperationalProfile,
-            OperationalProfileAssessment,
+            OperationalProfileAssessment, KnowledgePackManifest, PackCompatibility,
+            PackContributions, PackCoverageReport, PackDependency, PackResolution,
+            PackScenarioCoverage, PackStatus, PackValidationIssue, EntityClassifierRule,
+            RelationshipResolverRule, RedactionRule,
         ]
     }
 
@@ -1216,6 +1295,7 @@ def _persist_operation(
             ExecutionCheckpointRecord,
             OperationVerificationRecord,
             RecoveryCertificateRecord,
+    KnowledgePackRecord,
         ]:
             related.objects.filter(operation=record).delete()
         OperationPolicyDecisionRecord.objects.bulk_create([

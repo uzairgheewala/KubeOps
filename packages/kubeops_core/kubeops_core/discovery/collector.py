@@ -8,6 +8,11 @@ from kubeops_core.models.environment import EnvironmentDefinition
 from kubeops_core.util import utc_now_iso
 
 from .normalize import normalize_entity, normalize_observation, owner_relationships, resource_document
+
+try:
+    from kubeops_core.packs import PackRuntime
+except ImportError:  # pragma: no cover
+    PackRuntime = object  # type: ignore[misc,assignment]
 from .source import DiscoverySource
 
 
@@ -18,8 +23,9 @@ class DiscoveryRequest:
 
 
 class DiscoveryCollector:
-    def __init__(self, source: DiscoverySource) -> None:
+    def __init__(self, source: DiscoverySource, pack_runtime: "PackRuntime | None" = None) -> None:
         self.source = source
+        self.pack_runtime = pack_runtime
 
     def collect(self, environment: EnvironmentDefinition, request: DiscoveryRequest | None = None) -> DiscoveryBundle:
         request = request or DiscoveryRequest()
@@ -29,8 +35,14 @@ class DiscoveryCollector:
         documents = []
         for resource_type in sorted(raw.resources):
             for item in raw.resources[resource_type]:
-                documents.append(resource_document(item, self.source.source_id, completed))
+                document = resource_document(item, self.source.source_id, completed)
+                if self.pack_runtime is not None:
+                    redacted = self.pack_runtime.redact(document.payload, resource_kind=document.resource_kind)
+                    document = document.model_copy(update={"payload": redacted})
+                documents.append(document)
         entities = [normalize_entity(document) for document in documents]
+        if self.pack_runtime is not None:
+            entities = [self.pack_runtime.classify_entity(document, entity) for document, entity in zip(documents, entities, strict=True)]
         relationships = owner_relationships(entities)
         observations = [normalize_observation(entity, completed, self.source.source_id) for entity in entities]
         issues = [
@@ -65,6 +77,7 @@ class DiscoveryCollector:
                 "entity_count": len(entities),
                 "base_relationship_count": len(relationships),
                 "observation_count": len(observations),
+                "active_pack_ids": self.pack_runtime.active_pack_ids if self.pack_runtime is not None else [],
                 "resource_types": {key: len(value) for key, value in raw.resources.items()},
                 "issue_count": len(issues),
                 "permission_gap_count": len(raw.permission_gaps),

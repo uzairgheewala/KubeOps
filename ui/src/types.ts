@@ -779,3 +779,75 @@ export type OperationSummary = {
   approval_count: number;
   updated_at: string;
 };
+
+export type PackValidationIssue = {
+  code: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  pack_id?: string | null;
+  contribution_id?: string | null;
+  details: Record<string, unknown>;
+};
+
+export type PackScenarioCoverage = {
+  family_ids: string[];
+  invariant_families: string[];
+  disturbance_mechanisms: string[];
+  topology_patterns: string[];
+  support_level: string;
+};
+
+export type KnowledgePackManifest = {
+  pack_id: string;
+  version: string;
+  title: string;
+  pack_kind: string;
+  description: string;
+  priority: number;
+  dependencies: Array<{ pack_id: string; version_constraint: string; optional: boolean; reason: string }>;
+  conflicts_with: string[];
+  compatibility: Record<string, unknown>;
+  capabilities: string[];
+  supported_entity_types: string[];
+  contributions: Record<string, unknown[]>;
+  metadata: Record<string, unknown>;
+};
+
+export type PackStatus = {
+  pack_id: string;
+  version: string;
+  state: string;
+  source: string;
+  enabled: boolean;
+  resolved_dependencies: string[];
+  contribution_counts: Record<string, number>;
+  issues: PackValidationIssue[];
+  manifest_hash: string;
+};
+
+export type PackResolution = {
+  resolution_id: string;
+  created_at_iso: string;
+  requested_pack_ids: string[];
+  ordered_pack_ids: string[];
+  active_pack_ids: string[];
+  blocked_pack_ids: string[];
+  statuses: PackStatus[];
+  issues: PackValidationIssue[];
+  contribution_counts: Record<string, number>;
+};
+
+export type PackCoverageReport = {
+  generated_at_iso: string;
+  active_pack_ids: string[];
+  by_pack: Record<string, PackScenarioCoverage[]>;
+  family_support: Record<string, Array<{ pack_id: string; support_level: string }>>;
+  invariant_support: Record<string, Array<{ pack_id: string; support_level: string }>>;
+  gaps: string[];
+};
+
+export type PackCatalogResponse = {
+  packs: Array<{ manifest: KnowledgePackManifest; source: string; status: PackStatus | null }>;
+  resolution: PackResolution;
+  coverage: PackCoverageReport;
+};

@@ -28,8 +28,9 @@ class CollectionResult:
 class EnvironmentIntelligenceService:
     """Framework-independent orchestration for Release 0.2 read-only intelligence."""
 
-    def __init__(self) -> None:
-        self._topology = TopologyCompiler()
+    def __init__(self, pack_runtime=None) -> None:
+        self.pack_runtime = pack_runtime
+        self._topology = TopologyCompiler(pack_runtime)
         self._snapshot = SnapshotBuilder()
         self._health = HealthAssessmentEngine()
 
@@ -53,7 +54,7 @@ class EnvironmentIntelligenceService:
         history: list[EnvironmentSnapshot] | None = None,
     ) -> CollectionResult:
         source = self._source(environment, method_id)
-        bundle = DiscoveryCollector(source).collect(
+        bundle = DiscoveryCollector(source, self.pack_runtime).collect(
             environment,
             DiscoveryRequest(method_id=method_id, resource_types=resource_types),
         )

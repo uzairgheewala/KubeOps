@@ -1,0 +1,239 @@
+schema_version: kubeops.io/v1
+pack_id: django
+version: 1.0.0
+title: Django
+pack_kind: application
+description: Django discovery, health, diagnosis and bounded recovery semantics.
+api_version: kubeops.io/pack/v1
+priority: 40
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+- schema_version: kubeops.io/v1
+  pack_id: postgres
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: true
+  reason: Requires postgres semantic contracts from the Release 0.5 pack API.
+- schema_version: kubeops.io/v1
+  pack_id: redis
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: true
+  reason: Requires redis semantic contracts from the Release 0.5 pack API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- diagnose
+- health
+- classify
+- execute
+supported_entity_types:
+- application.django
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: django.component.v1
+    priority: 100
+    resource_kinds:
+    - DaemonSet
+    - Deployment
+    - StatefulSet
+    namespaces: []
+    name_regex: django|web|api
+    label_equals: {}
+    annotation_equals: {}
+    set_entity_type: application.django
+    set_plane: application
+    set_provider: django
+    add_capabilities:
+    - django.component
+    extension_namespace: django
+    extension_values: {}
+  relationship_resolvers:
+  - schema_version: kubeops.io/v1
+    resolver_id: django.declared-dependency.v1
+    handler_id: annotation_reference
+    relationship_type: requires_for_service
+    source_entity_types:
+    - application.django
+    target_entity_types: []
+    annotation_key: kubeops.io/requires
+    target_kind: Service
+    confidence: 1.0
+    contract:
+      required_state: serviceable
+    propagation:
+      effect_if_violated: django_not_serviceable
+  operational_profiles:
+  - schema_version: kubeops.io/v1
+    profile_id: django-serviceable.v1
+    version: 1.0.0
+    title: Django serviceable
+    description: ''
+    environment_classes: []
+    objective_ids:
+    - django.v1
+    invariant_templates:
+    - schema_version: kubeops.io/v1
+      template_id: django-serviceable.v1.required
+      title: Django serviceable
+      description: The selected workload controller has its desired ready capacity
+        available.
+      family: readiness
+      selector:
+        schema_version: kubeops.io/v1
+        entity_types:
+        - application.django
+        planes:
+        - application
+        namespaces: []
+        names: []
+        labels: {}
+        exclude_namespaces: []
+        include_cluster_scoped: true
+      check_type: workload_available
+      parameters: {}
+      severity: error
+      temporal:
+        schema_version: kubeops.io/v1
+        operator: immediate
+      required: true
+      affected_objectives:
+      - django-serviceable.v1
+    metadata: {}
+  evidence_intents:
+  - schema_version: kubeops.io/v1
+    intent_id: django.service.state.v1
+    title: Inspect Django semantic state
+    question: Inspect Django semantic state
+    questions_answered:
+    - component_state
+    subject_ids: []
+    required_fact_types:
+    - entity.state
+    preferred_collector_ids:
+    - django.service.snapshot.v1
+    required_authority: authoritative
+    cost_class: low
+    risk_class: R0
+    stopping_condition: all_required_facts
+    metadata: {}
+  collectors:
+  - schema_version: kubeops.io/v1
+    collector_id: django.service.snapshot.v1
+    title: Django state
+    description: Collect normalized read-only state for Django workload controllers.
+    questions_answered:
+    - component_state
+    fact_types:
+    - entity.state
+    supported_modes:
+    - live
+    - fixture
+    required_capabilities: []
+    supported_entity_types:
+    - application.django
+    supported_planes: []
+    required_inputs:
+    - snapshot
+    handler_id: entity_state
+    authority: authoritative
+    cost_class: low
+    risk_class: R0
+    metadata:
+      pack_managed: true
+  causal_templates:
+  - schema_version: kubeops.io/v1
+    template_id: django.not_serviceable.v1
+    family_id: django.not_serviceable
+    title: Django service not serviceable
+    claim_template: Django service not serviceable affects {subject}.
+    parent_family_id: operational.invariant_violation
+    invariant_families:
+    - readiness
+    symptom_types: []
+    supporting_fact_types:
+    - entity.state
+    - invariant.violated
+    contradicting_fact_types: []
+    predicted_fact_types:
+    - entity.state
+    evidence_intent_ids:
+    - django.service.state.v1
+    specificity: 6
+    generic: false
+    metadata:
+      supported_entity_types:
+      - application.django
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: django.rollout_restart.v1
+    title: Recover Django
+    description: Execute the bounded Django recovery action through the registered
+      safe adapter.
+    parameter_schema:
+      required:
+      - kind
+      - name
+      - namespace
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+    preconditions: []
+    expected_effects:
+    - django_serviceable
+    possible_side_effects:
+    - temporary_unavailability
+    required_capabilities:
+    - kubernetes.workload.restart
+    supported_modes:
+    - live
+    - simulation
+    executor_id: kubectl.safe
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R2
+      blast_radius: single_component
+      availability_risk: temporary
+      data_risk: none
+      security_risk: none
+      reversible: false
+      idempotent: false
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles: []
+  verification_templates: []
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - django.not_serviceable
+    - component.not_serviceable
+    invariant_families:
+    - readiness
+    disturbance_mechanisms: []
+    topology_patterns:
+    - linear_dependency
+    support_level: executable
+metadata: {}

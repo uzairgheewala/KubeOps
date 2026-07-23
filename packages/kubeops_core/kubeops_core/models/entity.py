@@ -18,6 +18,7 @@ class OperationalEntity(SchemaModel):
 
     entity_id: str = Field(min_length=1)
     entity_type: str = Field(min_length=1)
+    entity_type_lineage: set[str] = Field(default_factory=set)
     name: str = Field(min_length=1)
     plane: OperationalPlane
     namespace: str | None = None

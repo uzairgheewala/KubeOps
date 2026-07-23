@@ -23,7 +23,10 @@ import type {
   SnapshotDiff,
   SnapshotSummary,
   SystemStatus,
-  TopologyGraph
+  TopologyGraph,
+  PackCatalogResponse,
+  PackResolution,
+  PackCoverageReport
 } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
@@ -49,6 +52,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => request<SystemStatus>("/system/status"),
+  packs: () => request<PackCatalogResponse>("/packs"),
+  resolvePacks: (packIds?: string[]) => request<PackResolution>("/packs/resolve", { method: "POST", body: JSON.stringify({ pack_ids: packIds ?? [] }) }),
+  packCoverage: () => request<PackCoverageReport>("/packs/coverage"),
   families: () => request<ScenarioFamily[]>("/scenario-families"),
   registry: () => request<RegistrySnapshot>("/registry"),
   compile: (payload: Record<string, unknown>) =>

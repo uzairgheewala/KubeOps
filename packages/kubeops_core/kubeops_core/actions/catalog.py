@@ -50,7 +50,7 @@ class ActionCatalog:
         return len(self._actions)
 
 
-def build_builtin_action_catalog() -> ActionCatalog:
+def build_builtin_action_catalog(pack_runtime=None) -> ActionCatalog:
     catalog = ActionCatalog()
     definitions = [
         ActionTypeDefinition(
@@ -163,4 +163,7 @@ def build_builtin_action_catalog() -> ActionCatalog:
     ]
     for definition in definitions:
         catalog.register(definition)
+    if pack_runtime is not None:
+        for definition in pack_runtime.action_types():
+            catalog.register(definition)
     return catalog

@@ -6,10 +6,11 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements-dev.txt
 (cd ui && npm install)
-export PYTHONPATH="$PWD/packages/kubeops_core:$PWD/packages/kubeops_cli:$PWD/control_plane${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$PWD/packages/kubeops_core:$PWD/packages/kubeops_pack_sdk:$PWD/packages/kubeops_cli:$PWD/control_plane${PYTHONPATH:+:$PYTHONPATH}"
 python control_plane/manage.py migrate
 python control_plane/manage.py seed_release_01
 python control_plane/manage.py seed_release_02
 python control_plane/manage.py seed_release_04
-printf '\nKubeOps Release 0.4 is bootstrapped.\n'
+python control_plane/manage.py seed_release_05
+printf '\nKubeOps Release 0.5 is bootstrapped.\n'
 printf 'Run ./scripts/dev.sh to start API and UI.\n'

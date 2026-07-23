@@ -1,112 +1,145 @@
-# Release 0.4 implementation manifest
+# Release 0.5 implementation manifest
 
-Release 0.4 implements the phased-plan checkpoint **Guarded local recovery**.
-It adds lifecycle planning, typed action authority, policy decisions, approvals,
-durable execution, rollback, semantic verification, and the operation workbench
-without weakening the Release 0.3 read-only diagnosis boundary.
+Release 0.5 implements the phased-plan checkpoint **Extensible operational
+platform**. Provider and component semantics are now independently versioned
+pack contributions consumed by the common Release 0.1–0.4 kernel.
 
-## New core packages
-
-```text
-packages/kubeops_core/kubeops_core/actions/
-packages/kubeops_core/kubeops_core/lifecycle/
-packages/kubeops_core/kubeops_core/policy/
-packages/kubeops_core/kubeops_core/execution/
-packages/kubeops_core/kubeops_core/verification/
-```
-
-## New declarative catalogs
+## New packages and modules
 
 ```text
-actions/
-lifecycle/local-development-startup.v1.yaml
-lifecycle/local-development-shutdown.v1.yaml
-policies/local-development-guarded.v1.yaml
-policies/production-guidance-only.v1.yaml
+packages/kubeops_core/kubeops_core/models/pack.py
+packages/kubeops_core/kubeops_core/packs/
+packages/kubeops_pack_sdk/
 ```
 
-## New or expanded canonical contracts
+## Built-in knowledge packs
 
-- Lifecycle profiles, stages, and action templates.
-- Typed action definitions and instances.
-- Execution policies and decisions.
-- Recovery plans with embedded verification conditions.
-- Approval records.
-- Action receipts.
-- Execution checkpoints.
-- Operation timeline events.
-- Durable operation runs.
-- Operation-aware recovery certificates.
+```text
+packs/generic-kubernetes/
+packs/docker-host/
+packs/kind/
+packs/k3s/
+packs/coredns/
+packs/ingress-nginx/
+packs/argocd/
+packs/postgres/
+packs/redis/
+packs/django/
+packs/celery/
+```
+
+Each pack contributes only canonical objects and registered handler/executor
+references. No pack-owned arbitrary runtime code is imported.
+
+## Canonical model changes
+
+- Pack identity, compatibility, dependency, status, resolution, coverage, and
+  contribution contracts.
+- Entity classifiers and relationship resolvers.
+- Redaction and scenario-coverage contracts.
+- `OperationalEntity.entity_type_lineage` for specialization without generic
+  semantic loss.
+- Registry categories for packs, classifiers, resolvers, verification
+  templates, redaction rules, and pack coverage.
+
+## Runtime integration
+
+### Discovery
+
+1. Collect read-only source material.
+2. Apply built-in sanitization.
+3. Apply resolved pack redaction.
+4. Normalize canonical resources and entities.
+5. Apply ordered entity classifiers.
+6. Preserve generic type lineage and pack provenance.
+
+### Topology
+
+Generic Kubernetes resolvers run first. Pack relationship resolvers then add
+content-addressed, provenance-bearing relationships through registered handler
+IDs.
+
+### Health and diagnosis
+
+Pack operational profiles join the common profile registry. Pack evidence
+intents, collectors, and causal templates join the common diagnostic catalog.
+Component-specific templates are considered only when their supported entity
+types intersect the subject entity’s type lineage.
+
+### Planning and execution
+
+Pack typed actions and lifecycle profiles join the existing guarded catalogs.
+The Release 0.4 policy and execution runtime remains authoritative.
+
+## Pack resolution safeguards
+
+- semantic-version compatibility;
+- dependency closure;
+- cycle rejection;
+- required dependency blocking;
+- installed conflict detection;
+- duplicate contribution detection;
+- cross-pack contribution collision rejection;
+- deterministic ordering by dependency, priority, and pack ID;
+- immutable manifest hashes;
+- enabled-subset projection.
+
+## Artifact chain
+
+`build_pack_artifacts` emits:
+
+```text
+knowledge_pack_manifest × N
+pack_resolution
+pack_coverage
+pack_contribution_catalog
+pack_resolution_manifest
+```
+
+All artifacts are content-addressed and can be persisted by the existing
+`FileArtifactStore`.
 
 ## Control-plane projection
 
-Migration `0004_release_04_guarded_lifecycle.py` creates:
+Migration `0005_release_05_knowledge_packs.py` creates
+`KnowledgePackRecord`. The canonical manifest remains authoritative; the
+relational record supports filtering, status display, and administration.
 
-- `LifecycleProfileRecord`
-- `ExecutionPolicyRecord`
-- `OperationRecord`
-- `OperationPolicyDecisionRecord`
-- `OperationApprovalRecord`
-- `ActionReceiptRecord`
-- `OperationTimelineRecord`
-- `ExecutionCheckpointRecord`
-- `OperationVerificationRecord`
-- `RecoveryCertificateRecord`
+`seed_release_05` reconciles installed pack manifests and configured active
+status into that projection.
 
-The canonical `OperationRun` payload remains authoritative; relational rows are
-query projections for the UI and API.
-
-## Safety boundary
-
-- `KUBEOPS_LIVE_EXECUTION_ENABLED` defaults to false.
-- The API selects dry-run or simulation unless live execution is explicitly
-  enabled and requested.
-- Every action is resolved through the catalog and executor registry.
-- Arbitrary shell strings are not an action type.
-- Policy decisions are persisted independently from plans and diagnoses.
-- R2+ actions can require checkpoints and approvals.
-- Fingerprint and capability mismatches deny execution.
-- Active rejections deny execution.
-- Expired and duplicate-person approvals do not satisfy quorum.
-
-## Operation state path
+## UI
 
 ```text
-created
-  → awaiting_approval | authorized | blocked
-  → running
-  → verifying
-  → completed | failed
-  → rolling_back
+ui/src/features/packs/PackWorkbench.tsx
 ```
 
-Pause, resume, and cancellation operate on the durable journal. Each action attempt emits an
-immutable receipt, and each significant transition emits a sequenced event.
+The workbench provides resolution, contribution, coverage, and raw-manifest
+views.
 
-## UI additions
+## Example fixture
 
-```text
-ui/src/features/operations/OperationWorkbench.tsx
-```
+The pack-stack fixture contains a Kind node, CoreDNS, Ingress-NGINX, Argo CD,
+PostgreSQL, Redis, Django, and Celery resources. It verifies that generic
+cluster contracts and component-specific contracts operate together.
 
-The workbench supports plan preview, creation, approval, execution, pause,
-resume, cancellation, rollback, verification, certificate inspection, timeline replay, and
-artifact lineage.
+## Tests
 
-## Test additions
+Release 0.5 tests cover:
 
-`tests/unit/test_release_04_lifecycle.py` covers:
-
-- dependency-aware plan compilation;
-- fingerprint, capability, approval, and checkpoint policy behavior;
-- distinct, unexpired approvals and active rejections;
-- lifecycle DAG rejection;
-- dry-run journaling;
-- simulation idempotency;
-- semantic verification;
-- failure and rollback receipts;
-- terminal-Job cleanup safety;
-- deterministic operation artifacts.
-
-The Django integration suite adds API-level lifecycle planning, operation,
-approval, run, certificate, and live-disable tests.
+- all 11 pack manifests;
+- contribution counts and dependency closure;
+- compatibility rejection;
+- dependency-cycle rejection;
+- cross-pack collision rejection;
+- specialized classification and type lineage;
+- declarative topology resolution;
+- pack redaction;
+- contribution merging into prior registries;
+- component-specific causal-template filtering;
+- generic and specialized health evaluation;
+- provider lifecycle planning;
+- immutable pack artifacts;
+- SDK scaffolding and validation;
+- pack API and seeder contracts;
+- every retained Release 0.1–0.4 unit test.

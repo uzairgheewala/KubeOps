@@ -10,11 +10,12 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
-from kubeops_core.artifacts import FileArtifactStore, build_incident_artifacts, build_operation_artifacts, build_run_artifacts
+from kubeops_core.artifacts import FileArtifactStore, build_incident_artifacts, build_operation_artifacts, build_pack_artifacts, build_run_artifacts
 from kubeops_core.actions import build_builtin_action_catalog
 from kubeops_core.execution import ExecutionContext, FileOperationStore, OperationRuntime, RuntimeContext, build_default_executor_registry
 from kubeops_core.lifecycle import LifecyclePlanner, LifecycleProfileRegistry
 from kubeops_core.policy import ExecutionPolicyRegistry, PolicyContext
+from kubeops_core.packs import PackManager
 from kubeops_core.util import utc_now_iso
 from kubeops_core.models.composition import ScenarioComposition
 from kubeops_core.discovery import diff_snapshots
@@ -28,7 +29,7 @@ from kubeops_core.registry import ScenarioFamilyRegistry, build_builtin_catalog
 from kubeops_core.scenarios import ScenarioCompileError, ScenarioCompiler, ScenarioComposer
 from kubeops_core.simulator import SimulationEngine
 
-app = typer.Typer(no_args_is_help=True, help="KubeOps Release 0.4 guarded lifecycle, recovery, diagnosis, and scenario CLI.")
+app = typer.Typer(no_args_is_help=True, help="KubeOps Release 0.5 knowledge-pack, guarded recovery, diagnosis, and scenario CLI.")
 family_app = typer.Typer(no_args_is_help=True, help="Inspect scenario families.")
 scenario_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenarios.")
 composition_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenario compositions.")
@@ -41,6 +42,7 @@ diagnostic_app = typer.Typer(no_args_is_help=True, help="Inspect diagnostic inte
 lifecycle_app = typer.Typer(no_args_is_help=True, help="Plan startup and shutdown lifecycle transitions.")
 policy_app = typer.Typer(no_args_is_help=True, help="Inspect execution policies and typed actions.")
 operation_app = typer.Typer(no_args_is_help=True, help="Create, approve, execute, resume, and inspect durable operations.")
+pack_app = typer.Typer(no_args_is_help=True, help="Inspect, validate, resolve, and measure knowledge packs.")
 app.add_typer(family_app, name="family")
 app.add_typer(scenario_app, name="scenario")
 app.add_typer(composition_app, name="composition")
@@ -53,6 +55,7 @@ app.add_typer(diagnostic_app, name="diagnostic")
 app.add_typer(lifecycle_app, name="lifecycle")
 app.add_typer(policy_app, name="policy")
 app.add_typer(operation_app, name="operation")
+app.add_typer(pack_app, name="pack")
 console = Console()
 
 
@@ -73,9 +76,20 @@ def _registry() -> ScenarioFamilyRegistry:
     return registry
 
 
+def _pack_manager() -> PackManager:
+    manager = PackManager(kubeops_version="0.5.0")
+    manager.load_directory(_repo_root() / "packs")
+    return manager
+
+
+def _pack_runtime():
+    return _pack_manager().runtime()
+
+
 def _lifecycle_registry() -> LifecycleProfileRegistry:
     registry = LifecycleProfileRegistry()
     registry.load_directory(_repo_root() / "lifecycle")
+    registry.load_pack_runtime(_pack_runtime())
     return registry
 
 
@@ -86,7 +100,7 @@ def _policy_registry() -> ExecutionPolicyRegistry:
 
 
 def _operation_runtime(store_dir: Path) -> OperationRuntime:
-    return OperationRuntime(build_builtin_action_catalog(), build_default_executor_registry(), FileOperationStore(store_dir))
+    return OperationRuntime(build_builtin_action_catalog(_pack_runtime()), build_default_executor_registry(), FileOperationStore(store_dir))
 
 
 def _parse_bindings(items: list[str]) -> dict[str, Any]:
@@ -113,6 +127,7 @@ def _load_model(path: Path, model: Any) -> Any:
 def _profile_registry() -> OperationalProfileRegistry:
     registry = OperationalProfileRegistry()
     registry.load_directory(_repo_root() / "profiles")
+    registry.load_pack_runtime(_pack_runtime())
     return registry
 
 
@@ -122,7 +137,7 @@ def validate_environment(
     method_id: str | None = typer.Option(None, help="Access method to validate."),
 ) -> None:
     environment = _load_model(environment_path, EnvironmentDefinition)
-    result = EnvironmentIntelligenceService().validate(environment, method_id)
+    result = EnvironmentIntelligenceService(_pack_runtime()).validate(environment, method_id)
     table = Table(title=f"Access validation: {environment.name}")
     table.add_column("Check")
     table.add_column("Status")
@@ -154,7 +169,7 @@ def collect_snapshot(
     registry = _profile_registry()
     profile_ids = profile or environment.operational_profile_ids
     profiles = [registry.get(profile_id) for profile_id in profile_ids]
-    result = EnvironmentIntelligenceService().collect(
+    result = EnvironmentIntelligenceService(_pack_runtime()).collect(
         environment,
         method_id=method_id,
         resource_types=resource or None,
@@ -719,6 +734,76 @@ def show_operation(operation_id: str, store_dir: Path = typer.Option(Path("opera
     table.add_row("Checkpoints", str(len(operation.checkpoints)))
     table.add_row("Certificate", operation.recovery_certificate.status if operation.recovery_certificate else "none")
     console.print(table)
+
+
+
+
+@pack_app.command("list")
+def list_packs() -> None:
+    manager = _pack_manager()
+    resolution = manager.resolve()
+    states = {item.pack_id: item.state for item in resolution.statuses}
+    table = Table(title="KubeOps knowledge packs")
+    table.add_column("Pack")
+    table.add_column("Version")
+    table.add_column("Kind")
+    table.add_column("State")
+    table.add_column("Contributions")
+    for manifest in manager.values():
+        table.add_row(manifest.pack_id, manifest.version, manifest.pack_kind, states.get(manifest.pack_id, "discovered"), str(sum(manifest.contributions.counts().values())))
+    console.print(table)
+
+
+@pack_app.command("show")
+def show_pack(pack_id: str) -> None:
+    manager = _pack_manager()
+    manifest = manager.get(pack_id)
+    console.print_json(manifest.model_dump_json(indent=2))
+
+
+@pack_app.command("validate")
+def validate_pack(pack_id: str | None = None) -> None:
+    manager = _pack_manager()
+    pack_ids = [pack_id] if pack_id else [item.pack_id for item in manager.values()]
+    issues = [issue for current in pack_ids for issue in manager.validate(current)]
+    if not issues:
+        console.print(f"[green]Validated {len(pack_ids)} packs with no errors.[/green]")
+        return
+    for issue in issues:
+        console.print(f"[{ 'red' if issue.severity == 'error' else 'yellow' }]{issue.pack_id or 'resolution'}: {issue.code}: {issue.message}[/]")
+    if any(issue.severity == "error" for issue in issues):
+        raise typer.Exit(2)
+
+
+@pack_app.command("resolve")
+def resolve_packs(pack_id: list[str] = typer.Argument(None)) -> None:
+    resolution = _pack_manager().resolve(pack_id or None)
+    console.print_json(resolution.model_dump_json(indent=2))
+
+
+@pack_app.command("coverage")
+def pack_coverage() -> None:
+    report = _pack_runtime().coverage_report()
+    table = Table(title="Pack scenario coverage")
+    table.add_column("Family")
+    table.add_column("Packs")
+    table.add_column("Support")
+    for family_id, records in report.family_support.items():
+        table.add_row(family_id, ", ".join(item["pack_id"] for item in records), ", ".join(item["support_level"] for item in records))
+    console.print(table)
+
+
+@pack_app.command("export")
+def export_pack_resolution(
+    output_dir: Path = typer.Option(..., help="Write immutable pack-resolution artifacts here."),
+    pack_id: list[str] = typer.Option([], "--pack", help="Resolve only these packs and their required dependencies."),
+) -> None:
+    manager = _pack_manager()
+    runtime = manager.runtime(pack_id or None)
+    store = FileArtifactStore(output_dir)
+    artifacts = build_pack_artifacts(runtime.resolution, runtime.manifests, runtime.coverage_report())
+    paths = [store.put(artifact) for artifact in artifacts]
+    console.print(f"[green]Exported {len(paths)} pack artifacts[/green] to {output_dir / runtime.resolution.resolution_id}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,43 @@
+schema_version: kubeops.io/v1
+environment_id: demo-pack-stack-fixture
+name: Demo pack-aware stack fixture
+environment_class: development
+provider: fixture
+cluster_provider: kind
+host_provider: docker
+criticality: disposable-control-plane
+access_methods:
+- schema_version: kubeops.io/v1
+  method_id: recorded-pack-stack
+  method_type: fixture
+  title: Recorded pack-aware stack
+  fixture_path: lab/fixtures/pack-stack-degraded.v1.yaml
+  read_only: true
+  timeout_seconds: 30
+default_access_method_id: recorded-pack-stack
+operational_profile_ids:
+- cluster-observable.v1
+- local-development-usable.v1
+- coredns-serviceable.v1
+- ingress-nginx-serviceable.v1
+- argocd-serviceable.v1
+- postgres-serviceable.v1
+- redis-serviceable.v1
+- django-serviceable.v1
+- celery-serviceable.v1
+installed_pack_ids:
+- generic-kubernetes
+- docker-host
+- kind
+- coredns
+- ingress-nginx
+- argocd
+- postgres
+- redis
+- django
+- celery
+labels:
+  purpose: release-0.5-demo
+annotations:
+  description: Exercises independently versioned provider, platform, and application
+    packs.

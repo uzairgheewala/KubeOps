@@ -1,0 +1,226 @@
+schema_version: kubeops.io/v1
+pack_id: argocd
+version: 1.0.0
+title: Argo CD
+pack_kind: platform
+description: Argo CD discovery, health, diagnosis and bounded recovery semantics.
+api_version: kubeops.io/pack/v1
+priority: 30
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- diagnose
+- health
+- classify
+- execute
+supported_entity_types:
+- platform.argocd
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: argocd.component.v1
+    priority: 100
+    resource_kinds:
+    - DaemonSet
+    - Deployment
+    - StatefulSet
+    namespaces:
+    - argocd
+    name_regex: argocd
+    label_equals: {}
+    annotation_equals: {}
+    set_entity_type: platform.argocd
+    set_plane: platform
+    set_provider: argocd
+    add_capabilities:
+    - argocd.component
+    extension_namespace: argocd
+    extension_values: {}
+  relationship_resolvers:
+  - schema_version: kubeops.io/v1
+    resolver_id: argocd.instance-ownership.v1
+    handler_id: label_group
+    relationship_type: reconciles
+    source_entity_types:
+    - platform.argocd
+    target_entity_types: []
+    label_key: argocd.argoproj.io/instance
+    confidence: 0.95
+    contract: {}
+    propagation: {}
+  operational_profiles:
+  - schema_version: kubeops.io/v1
+    profile_id: argocd-serviceable.v1
+    version: 1.0.0
+    title: Argo CD serviceable
+    description: ''
+    environment_classes: []
+    objective_ids:
+    - argocd.v1
+    invariant_templates:
+    - schema_version: kubeops.io/v1
+      template_id: argocd-serviceable.v1.required
+      title: Argo CD serviceable
+      description: The selected workload controller has its desired ready capacity
+        available.
+      family: consistency
+      selector:
+        schema_version: kubeops.io/v1
+        entity_types:
+        - platform.argocd
+        planes:
+        - platform
+        namespaces: []
+        names: []
+        labels: {}
+        exclude_namespaces: []
+        include_cluster_scoped: true
+      check_type: controller_progress
+      parameters: {}
+      severity: error
+      temporal:
+        schema_version: kubeops.io/v1
+        operator: immediate
+      required: true
+      affected_objectives:
+      - argocd-serviceable.v1
+    metadata: {}
+  evidence_intents:
+  - schema_version: kubeops.io/v1
+    intent_id: argocd.application.state.v1
+    title: Inspect Argo CD semantic state
+    question: Inspect Argo CD semantic state
+    questions_answered:
+    - component_state
+    subject_ids: []
+    required_fact_types:
+    - entity.state
+    preferred_collector_ids:
+    - argocd.application.snapshot.v1
+    required_authority: authoritative
+    cost_class: low
+    risk_class: R0
+    stopping_condition: all_required_facts
+    metadata: {}
+  collectors:
+  - schema_version: kubeops.io/v1
+    collector_id: argocd.application.snapshot.v1
+    title: Argo CD state
+    description: Collect normalized read-only state for Argo CD workload controllers.
+    questions_answered:
+    - component_state
+    fact_types:
+    - entity.state
+    - controller.progress
+    supported_modes:
+    - live
+    - fixture
+    required_capabilities: []
+    supported_entity_types:
+    - platform.argocd
+    supported_planes: []
+    required_inputs:
+    - snapshot
+    handler_id: controller_progress
+    authority: authoritative
+    cost_class: low
+    risk_class: R0
+    metadata:
+      pack_managed: true
+  causal_templates:
+  - schema_version: kubeops.io/v1
+    template_id: argocd.reconciliation_failure.v1
+    family_id: argocd.reconciliation_failure
+    title: Argo CD reconciliation failure
+    claim_template: Argo CD reconciliation failure affects {subject}.
+    parent_family_id: operational.invariant_violation
+    invariant_families:
+    - consistency
+    symptom_types: []
+    supporting_fact_types:
+    - entity.state
+    - invariant.violated
+    contradicting_fact_types: []
+    predicted_fact_types:
+    - entity.state
+    evidence_intent_ids:
+    - argocd.application.state.v1
+    specificity: 6
+    generic: false
+    metadata:
+      supported_entity_types:
+      - platform.argocd
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: argocd.application.refresh.pack.v1
+    title: Recover Argo CD
+    description: Execute the bounded Argo CD recovery action through the registered
+      safe adapter.
+    parameter_schema:
+      required:
+      - name
+      - namespace
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+    preconditions: []
+    expected_effects:
+    - argocd_serviceable
+    possible_side_effects:
+    - temporary_unavailability
+    required_capabilities:
+    - argocd.application.refresh
+    supported_modes:
+    - live
+    - simulation
+    executor_id: kubectl.safe
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R1
+      blast_radius: single_component
+      availability_risk: bounded
+      data_risk: none
+      security_risk: none
+      reversible: false
+      idempotent: true
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles: []
+  verification_templates: []
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - argocd.reconciliation_failure
+    - component.not_serviceable
+    invariant_families:
+    - readiness
+    - consistency
+    disturbance_mechanisms: []
+    topology_patterns:
+    - linear_dependency
+    support_level: executable
+metadata: {}

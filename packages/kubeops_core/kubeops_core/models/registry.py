@@ -25,6 +25,12 @@ RegistryCategory = Literal[
     "action_type",
     "lifecycle_profile",
     "execution_policy",
+    "knowledge_pack",
+    "entity_classifier",
+    "relationship_resolver",
+    "verification_template",
+    "redaction_rule",
+    "pack_coverage",
 ]
 
 

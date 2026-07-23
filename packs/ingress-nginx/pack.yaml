@@ -1,0 +1,217 @@
+schema_version: kubeops.io/v1
+pack_id: ingress-nginx
+version: 1.0.0
+title: Ingress-NGINX
+pack_kind: platform
+description: Ingress-NGINX discovery, health, diagnosis and bounded recovery semantics.
+api_version: kubeops.io/pack/v1
+priority: 30
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- diagnose
+- health
+- classify
+- execute
+supported_entity_types:
+- platform.ingress_nginx
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: ingress-nginx.component.v1
+    priority: 100
+    resource_kinds:
+    - DaemonSet
+    - Deployment
+    - StatefulSet
+    namespaces:
+    - ingress-nginx
+    name_regex: ingress-nginx
+    label_equals: {}
+    annotation_equals: {}
+    set_entity_type: platform.ingress_nginx
+    set_plane: platform
+    set_provider: ingress-nginx
+    add_capabilities:
+    - ingress-nginx.component
+    extension_namespace: ingress-nginx
+    extension_values: {}
+  relationship_resolvers: []
+  operational_profiles:
+  - schema_version: kubeops.io/v1
+    profile_id: ingress-nginx-serviceable.v1
+    version: 1.0.0
+    title: Ingress-NGINX serviceable
+    description: ''
+    environment_classes: []
+    objective_ids:
+    - ingress-nginx.v1
+    invariant_templates:
+    - schema_version: kubeops.io/v1
+      template_id: ingress-nginx-serviceable.v1.required
+      title: Ingress-NGINX serviceable
+      description: The selected workload controller has its desired ready capacity
+        available.
+      family: reachability
+      selector:
+        schema_version: kubeops.io/v1
+        entity_types:
+        - platform.ingress_nginx
+        planes:
+        - platform
+        namespaces: []
+        names: []
+        labels: {}
+        exclude_namespaces: []
+        include_cluster_scoped: true
+      check_type: workload_available
+      parameters: {}
+      severity: error
+      temporal:
+        schema_version: kubeops.io/v1
+        operator: immediate
+      required: true
+      affected_objectives:
+      - ingress-nginx-serviceable.v1
+    metadata: {}
+  evidence_intents:
+  - schema_version: kubeops.io/v1
+    intent_id: ingress.route.state.v1
+    title: Inspect Ingress-NGINX semantic state
+    question: Inspect Ingress-NGINX semantic state
+    questions_answered:
+    - component_state
+    subject_ids: []
+    required_fact_types:
+    - entity.state
+    preferred_collector_ids:
+    - ingress.route.snapshot.v1
+    required_authority: authoritative
+    cost_class: low
+    risk_class: R0
+    stopping_condition: all_required_facts
+    metadata: {}
+  collectors:
+  - schema_version: kubeops.io/v1
+    collector_id: ingress.route.snapshot.v1
+    title: Ingress-NGINX state
+    description: Collect normalized read-only state for Ingress-NGINX workload controllers.
+    questions_answered:
+    - component_state
+    fact_types:
+    - entity.state
+    supported_modes:
+    - live
+    - fixture
+    required_capabilities: []
+    supported_entity_types:
+    - platform.ingress_nginx
+    supported_planes: []
+    required_inputs:
+    - snapshot
+    handler_id: entity_state
+    authority: authoritative
+    cost_class: low
+    risk_class: R0
+    metadata:
+      pack_managed: true
+  causal_templates:
+  - schema_version: kubeops.io/v1
+    template_id: ingress.route_unavailable.v1
+    family_id: ingress.route_unavailable
+    title: Ingress routing unavailable
+    claim_template: Ingress routing unavailable affects {subject}.
+    parent_family_id: operational.invariant_violation
+    invariant_families:
+    - reachability
+    symptom_types: []
+    supporting_fact_types:
+    - entity.state
+    - invariant.violated
+    contradicting_fact_types: []
+    predicted_fact_types:
+    - entity.state
+    evidence_intent_ids:
+    - ingress.route.state.v1
+    specificity: 6
+    generic: false
+    metadata:
+      supported_entity_types:
+      - platform.ingress_nginx
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: ingress-nginx.rollout_restart.v1
+    title: Recover Ingress-NGINX
+    description: Execute the bounded Ingress-NGINX recovery action through the registered
+      safe adapter.
+    parameter_schema:
+      required:
+      - kind
+      - name
+      - namespace
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+    preconditions: []
+    expected_effects:
+    - ingress-nginx_serviceable
+    possible_side_effects:
+    - temporary_unavailability
+    required_capabilities:
+    - kubernetes.workload.restart
+    supported_modes:
+    - live
+    - simulation
+    executor_id: kubectl.safe
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R2
+      blast_radius: single_component
+      availability_risk: temporary
+      data_risk: none
+      security_risk: none
+      reversible: false
+      idempotent: false
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles: []
+  verification_templates: []
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - ingress.route_unavailable
+    - component.not_serviceable
+    invariant_families:
+    - reachability
+    - readiness
+    disturbance_mechanisms: []
+    topology_patterns:
+    - linear_dependency
+    support_level: executable
+metadata: {}

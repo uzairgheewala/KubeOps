@@ -21,6 +21,7 @@ def _world(snapshot: EnvironmentSnapshot) -> dict[str, dict[str, Any]]:
         result[entity.entity_id] = {
             "entity_id": entity.entity_id,
             "entity_type": entity.entity_type,
+            "entity_type_lineage": sorted(entity.entity_type_lineage),
             "plane": entity.plane,
             "name": entity.name,
             "namespace": entity.namespace,
@@ -39,7 +40,7 @@ def _matches(entity: OperationalEntity, selector: dict[str, Any]) -> bool:
     for key, expected in selector.items():
         if key == "entity_id" and entity.entity_id != expected:
             return False
-        if key == "entity_type" and entity.entity_type != expected:
+        if key == "entity_type" and expected not in {entity.entity_type, *entity.entity_type_lineage}:
             return False
         if key == "plane" and str(entity.plane) != expected:
             return False

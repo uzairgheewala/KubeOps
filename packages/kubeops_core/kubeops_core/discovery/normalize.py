@@ -138,6 +138,7 @@ def normalize_entity(document: ResourceDocument) -> OperationalEntity:
     return OperationalEntity(
         entity_id=document.resource_id,
         entity_type=f"kubernetes.{document.resource_kind.lower()}",
+        entity_type_lineage={f"kubernetes.{document.resource_kind.lower()}"},
         name=document.name,
         plane=_plane(document.resource_kind, document.name, document.namespace),
         namespace=document.namespace,

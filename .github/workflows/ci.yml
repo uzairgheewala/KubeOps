@@ -22,7 +22,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      PYTHONPATH: packages/kubeops_core:packages/kubeops_cli:control_plane
+      PYTHONPATH: packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane
       DATABASE_URL: postgresql://kubeops:kubeops@localhost:5432/kubeops
       KUBEOPS_SCENARIO_DIR: ${{ github.workspace }}/scenarios
       KUBEOPS_PROFILE_DIR: ${{ github.workspace }}/profiles
@@ -30,6 +30,7 @@ jobs:
       KUBEOPS_LIFECYCLE_DIR: ${{ github.workspace }}/lifecycle
       KUBEOPS_POLICY_DIR: ${{ github.workspace }}/policies
       KUBEOPS_OPERATION_DIR: ${{ github.workspace }}/operations
+      KUBEOPS_PACK_DIR: ${{ github.workspace }}/packs
       KUBEOPS_LIVE_EXECUTION_ENABLED: "0"
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +43,7 @@ jobs:
       - run: python control_plane/manage.py seed_release_01
       - run: python control_plane/manage.py seed_release_02
       - run: python control_plane/manage.py seed_release_04
+      - run: python control_plane/manage.py seed_release_05
       - run: ruff check packages control_plane tests
       - run: pytest --cov --cov-report=term-missing
 

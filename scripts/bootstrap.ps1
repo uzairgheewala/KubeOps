@@ -7,9 +7,10 @@ pip install -r requirements-dev.txt
 Push-Location ui
 npm install
 Pop-Location
-$env:PYTHONPATH = "$PWD\packages\kubeops_core;$PWD\packages\kubeops_cli;$PWD\control_plane"
+$env:PYTHONPATH = "$PWD\packages\kubeops_core;$PWD\packages\kubeops_pack_sdk;$PWD\packages\kubeops_cli;$PWD\control_plane"
 python control_plane\manage.py migrate
 python control_plane\manage.py seed_release_01
 python control_plane\manage.py seed_release_02
 python control_plane\manage.py seed_release_04
-Write-Host "KubeOps Release 0.4 is bootstrapped."
+python control_plane\manage.py seed_release_05
+Write-Host "KubeOps Release 0.5 is bootstrapped."

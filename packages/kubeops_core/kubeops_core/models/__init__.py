@@ -52,6 +52,11 @@ from .diagnosis import (
 from .invariant import InvariantDefinition, InvariantEvaluation, TemporalRequirement
 from .objective import OperationalObjective, OperationalProfile
 from .observation import Observation, ObservationProfile
+from .pack import (
+    EntityClassifierRule, KnowledgePackManifest, PackCompatibility, PackContributions, PackCoverageReport,
+    PackDependency, PackResolution, PackScenarioCoverage, PackStatus, PackValidationIssue,
+    RedactionRule, RelationshipResolverRule,
+)
 from .planning import (
     ActionInstance,
     ActionTypeDefinition,

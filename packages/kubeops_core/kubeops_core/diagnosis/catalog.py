@@ -420,7 +420,7 @@ _TEMPLATES = [
 ]
 
 
-def build_builtin_diagnostic_catalog() -> DiagnosticCatalog:
+def build_builtin_diagnostic_catalog(pack_runtime=None) -> DiagnosticCatalog:
     catalog = DiagnosticCatalog()
     for item in _INTENTS:
         catalog.register_intent(item)
@@ -428,4 +428,11 @@ def build_builtin_diagnostic_catalog() -> DiagnosticCatalog:
         catalog.register_collector(item)
     for item in _TEMPLATES:
         catalog.register_template(item)
+    if pack_runtime is not None:
+        for item in pack_runtime.evidence_intents():
+            catalog.register_intent(item)
+        for item in pack_runtime.collectors():
+            catalog.register_collector(item)
+        for item in pack_runtime.causal_templates():
+            catalog.register_template(item)
     return catalog

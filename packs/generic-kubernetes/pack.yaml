@@ -1,0 +1,91 @@
+schema_version: kubeops.io/v1
+pack_id: generic-kubernetes
+version: 1.0.0
+title: Generic Kubernetes
+pack_kind: core
+description: Generic Kubernetes resources, conditions, identity, routing, storage
+  and safe actions.
+api_version: kubeops.io/pack/v1
+priority: 0
+dependencies: []
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- discover
+- diagnose
+- topology
+- execute
+- classify
+supported_entity_types:
+- kubernetes.resource
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: generic-kubernetes.resource.v1
+    priority: 0
+    resource_kinds:
+    - DaemonSet
+    - Service
+    - Job
+    - Node
+    - Deployment
+    - Ingress
+    - StatefulSet
+    - Pod
+    namespaces: []
+    label_equals: {}
+    annotation_equals: {}
+    set_entity_type: null
+    set_plane: null
+    set_provider: null
+    add_capabilities:
+    - pack.generic-kubernetes
+    extension_namespace: kubernetes
+    extension_values: {}
+  relationship_resolvers: []
+  operational_profiles: []
+  evidence_intents: []
+  collectors: []
+  causal_templates: []
+  action_types: []
+  lifecycle_profiles: []
+  verification_templates: []
+  redaction_rules:
+  - schema_version: kubeops.io/v1
+    rule_id: generic-kubernetes.credentials.v1
+    path_patterns: []
+    key_patterns:
+    - token
+    - password
+    - secret
+    - private.?key
+    - client.?secret
+    replacement: <redacted>
+    applies_to_resource_kinds: []
+    rationale: Remove credential material from pack evidence.
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - entity.required_absent
+    - dependency.endpoint_unreachable
+    - binding.invalid
+    - component.not_serviceable
+    invariant_families:
+    - existence
+    - reachability
+    - structural
+    - readiness
+    disturbance_mechanisms: []
+    topology_patterns:
+    - linear_dependency
+    - controller_owned_resource
+    support_level: verified
+metadata: {}

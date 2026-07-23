@@ -1,0 +1,222 @@
+schema_version: kubeops.io/v1
+pack_id: k3s
+version: 1.0.0
+title: k3s
+pack_kind: provider
+description: k3s server and agent service semantics.
+api_version: kubeops.io/pack/v1
+priority: 20
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- k3s_lifecycle
+- k3s_discovery
+supported_entity_types: []
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: k3s.node.v1
+    priority: 100
+    resource_kinds:
+    - Node
+    namespaces: []
+    label_equals:
+      kubeops.io/provider: k3s
+    annotation_equals: {}
+    set_entity_type: provider.k3s.node
+    set_plane: node
+    set_provider: k3s
+    add_capabilities:
+    - k3s.node
+    extension_namespace: k3s
+    extension_values: {}
+  relationship_resolvers: []
+  operational_profiles: []
+  evidence_intents:
+  - schema_version: kubeops.io/v1
+    intent_id: k3s.service.state.v1
+    title: Is the k3s service running and the API port reachable?
+    question: Is the k3s service running and the API port reachable?
+    questions_answered:
+    - component_state
+    subject_ids: []
+    required_fact_types:
+    - entity.state
+    preferred_collector_ids:
+    - k3s.service.snapshot.v1
+    required_authority: authoritative
+    cost_class: low
+    risk_class: R0
+    stopping_condition: all_required_facts
+    metadata: {}
+  collectors:
+  - schema_version: kubeops.io/v1
+    collector_id: k3s.service.snapshot.v1
+    title: k3s service state
+    description: ''
+    questions_answered:
+    - component_state
+    fact_types:
+    - entity.state
+    supported_modes:
+    - fixture
+    - live
+    required_capabilities: []
+    supported_entity_types:
+    - provider.k3s.node
+    supported_planes: []
+    required_inputs:
+    - snapshot
+    handler_id: entity_state
+    authority: authoritative
+    cost_class: low
+    risk_class: R0
+    metadata:
+      pack_managed: true
+  causal_templates:
+  - schema_version: kubeops.io/v1
+    template_id: k3s.service.unavailable.v1
+    family_id: k3s.service_unavailable
+    title: k3s service unavailable
+    claim_template: k3s service unavailable affects {subject}.
+    parent_family_id: operational.invariant_violation
+    invariant_families:
+    - liveness
+    symptom_types: []
+    supporting_fact_types:
+    - invariant.violated
+    - entity.state
+    contradicting_fact_types: []
+    predicted_fact_types:
+    - entity.state
+    evidence_intent_ids:
+    - k3s.service.state.v1
+    specificity: 6
+    generic: false
+    metadata:
+      supported_entity_types:
+      - provider.k3s.node
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: k3s.service.restart.v1
+    title: Restart k3s service
+    description: ''
+    parameter_schema:
+      required:
+      - service
+      properties:
+        service:
+          type: string
+    preconditions: []
+    expected_effects:
+    - kubernetes_api_reachable
+    possible_side_effects:
+    - temporary_cluster_unavailability
+    required_capabilities:
+    - host.service.restart
+    supported_modes:
+    - simulation
+    - live
+    executor_id: host.service
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R2
+      blast_radius: single_component
+      availability_risk: temporary
+      data_risk: none
+      security_risk: none
+      reversible: false
+      idempotent: false
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles:
+  - schema_version: kubeops.io/v1
+    profile_id: k3s-provider-maintenance.v1
+    version: 1.0.0
+    title: Recover k3s provider
+    description: ''
+    operation_type: maintenance
+    environment_classes:
+    - development
+    - staging
+    target_operational_profile_id: cluster-observable.v1
+    stages:
+    - schema_version: kubeops.io/v1
+      stage_id: service
+      title: k3s service
+      description: ''
+      depends_on_stage_ids: []
+      action_templates:
+      - schema_version: kubeops.io/v1
+        template_id: restart-k3s
+        action_type_id: k3s.service.restart.v1
+        title: Restart k3s service
+        target_selector:
+          entity_type: provider.k3s.node
+        parameters:
+          service: k3s
+        depends_on_template_ids: []
+        apply_when: []
+        skip_when: []
+        optional: false
+        metadata:
+          pack_id: k3s
+      entry_conditions: []
+      completion_conditions: []
+      allow_parallel_actions: false
+      timeout_seconds: 300
+      on_failure: stop
+    protected_invariant_ids: []
+    default_policy_id: local-development-guarded.v1
+    metadata:
+      pack_id: k3s
+  verification_templates:
+  - schema_version: kubeops.io/v1
+    condition_id: k3s.node.ready.v1
+    title: k3s node is ready
+    predicate:
+      schema_version: kubeops.io/v1
+      predicate_type: field_equals
+      entity_id: ${entity_id}
+      path: observed_state.ready
+      value: true
+    temporal:
+      schema_version: kubeops.io/v1
+      operator: immediate
+    level: resource_convergence
+    required: true
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - dependency.endpoint_unreachable
+    - k3s.service_unavailable
+    invariant_families:
+    - liveness
+    - reachability
+    disturbance_mechanisms: []
+    topology_patterns:
+    - host_to_cluster
+    support_level: executable
+metadata: {}

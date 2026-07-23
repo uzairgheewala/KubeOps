@@ -1,0 +1,229 @@
+schema_version: kubeops.io/v1
+pack_id: postgres
+version: 1.0.0
+title: PostgreSQL
+pack_kind: application
+description: PostgreSQL discovery, health, diagnosis and bounded recovery semantics.
+api_version: kubeops.io/pack/v1
+priority: 40
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubernetes_constraint: '>=1.25,<2.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems: []
+  architectures: []
+capabilities:
+- health
+- classify
+- diagnose
+- execute
+supported_entity_types:
+- application.postgres
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: postgres.component.v1
+    priority: 100
+    resource_kinds:
+    - DaemonSet
+    - Deployment
+    - StatefulSet
+    namespaces: []
+    name_regex: postgres
+    label_equals: {}
+    annotation_equals: {}
+    set_entity_type: application.postgres
+    set_plane: application
+    set_provider: postgres
+    add_capabilities:
+    - postgres.component
+    extension_namespace: postgres
+    extension_values: {}
+  relationship_resolvers: []
+  operational_profiles:
+  - schema_version: kubeops.io/v1
+    profile_id: postgres-serviceable.v1
+    version: 1.0.0
+    title: PostgreSQL serviceable
+    description: ''
+    environment_classes: []
+    objective_ids:
+    - postgres.v1
+    invariant_templates:
+    - schema_version: kubeops.io/v1
+      template_id: postgres-serviceable.v1.required
+      title: PostgreSQL serviceable
+      description: The selected workload controller has its desired ready capacity
+        available.
+      family: readiness
+      selector:
+        schema_version: kubeops.io/v1
+        entity_types:
+        - application.postgres
+        planes:
+        - application
+        namespaces: []
+        names: []
+        labels: {}
+        exclude_namespaces: []
+        include_cluster_scoped: true
+      check_type: workload_available
+      parameters: {}
+      severity: error
+      temporal:
+        schema_version: kubeops.io/v1
+        operator: immediate
+      required: true
+      affected_objectives:
+      - postgres-serviceable.v1
+    metadata: {}
+  evidence_intents:
+  - schema_version: kubeops.io/v1
+    intent_id: postgres.service.state.v1
+    title: Inspect PostgreSQL semantic state
+    question: Inspect PostgreSQL semantic state
+    questions_answered:
+    - component_state
+    subject_ids: []
+    required_fact_types:
+    - entity.state
+    preferred_collector_ids:
+    - postgres.service.snapshot.v1
+    required_authority: authoritative
+    cost_class: low
+    risk_class: R0
+    stopping_condition: all_required_facts
+    metadata: {}
+  collectors:
+  - schema_version: kubeops.io/v1
+    collector_id: postgres.service.snapshot.v1
+    title: PostgreSQL state
+    description: Collect normalized read-only state for PostgreSQL workload controllers.
+    questions_answered:
+    - component_state
+    fact_types:
+    - entity.state
+    supported_modes:
+    - fixture
+    - live
+    required_capabilities: []
+    supported_entity_types:
+    - application.postgres
+    supported_planes: []
+    required_inputs:
+    - snapshot
+    handler_id: entity_state
+    authority: authoritative
+    cost_class: low
+    risk_class: R0
+    metadata:
+      pack_managed: true
+  causal_templates:
+  - schema_version: kubeops.io/v1
+    template_id: postgres.not_serviceable.v1
+    family_id: postgres.not_serviceable
+    title: PostgreSQL not serviceable
+    claim_template: PostgreSQL not serviceable affects {subject}.
+    parent_family_id: operational.invariant_violation
+    invariant_families:
+    - readiness
+    symptom_types: []
+    supporting_fact_types:
+    - invariant.violated
+    - entity.state
+    contradicting_fact_types: []
+    predicted_fact_types:
+    - entity.state
+    evidence_intent_ids:
+    - postgres.service.state.v1
+    specificity: 6
+    generic: false
+    metadata:
+      supported_entity_types:
+      - application.postgres
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: postgres.rollout_restart.v1
+    title: Recover PostgreSQL
+    description: Execute the bounded PostgreSQL recovery action through the registered
+      safe adapter.
+    parameter_schema:
+      required:
+      - kind
+      - name
+      - namespace
+      properties:
+        kind:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+    preconditions: []
+    expected_effects:
+    - postgres_serviceable
+    possible_side_effects:
+    - temporary_unavailability
+    required_capabilities:
+    - kubernetes.workload.restart
+    supported_modes:
+    - simulation
+    - live
+    executor_id: kubectl.safe
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R3
+      blast_radius: single_component
+      availability_risk: temporary
+      data_risk: none
+      security_risk: none
+      reversible: false
+      idempotent: false
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles: []
+  verification_templates:
+  - schema_version: kubeops.io/v1
+    condition_id: postgres.semantic.ready.v1
+    title: PostgreSQL accepts connections
+    predicate:
+      schema_version: kubeops.io/v1
+      predicate_type: field_equals
+      entity_id: ${entity_id}
+      path: observed_state.ready
+      value: true
+    temporal:
+      schema_version: kubeops.io/v1
+      operator: immediate
+    level: semantic_health
+    required: true
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - postgres.not_serviceable
+    - component.not_serviceable
+    invariant_families:
+    - readiness
+    disturbance_mechanisms: []
+    topology_patterns:
+    - shared_dependency
+    support_level: executable
+metadata: {}

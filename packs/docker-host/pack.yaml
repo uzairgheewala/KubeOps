@@ -1,0 +1,147 @@
+schema_version: kubeops.io/v1
+pack_id: docker-host
+version: 1.0.0
+title: Docker Host
+pack_kind: provider
+description: Docker runtime and container lifecycle semantics.
+api_version: kubeops.io/pack/v1
+priority: 10
+dependencies:
+- schema_version: kubeops.io/v1
+  pack_id: generic-kubernetes
+  version_constraint: '>=1.0.0,<2.0.0'
+  optional: false
+  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+    API.
+conflicts_with: []
+compatibility:
+  schema_version: kubeops.io/v1
+  kubeops_constraint: '>=0.5.0,<1.0.0'
+  python_constraint: '>=3.11'
+  provider_constraints: {}
+  operating_systems:
+  - windows
+  - darwin
+  - linux
+  architectures: []
+capabilities:
+- host_discovery
+- container_lifecycle
+supported_entity_types: []
+contributions:
+  schema_version: kubeops.io/v1
+  entity_classifiers:
+  - schema_version: kubeops.io/v1
+    classifier_id: docker-host.runtime.v1
+    priority: 100
+    resource_kinds:
+    - Node
+    namespaces: []
+    label_equals: {}
+    annotation_equals:
+      kubeops.io/runtime: docker
+    set_entity_type: runtime.docker
+    set_plane: runtime
+    set_provider: docker
+    add_capabilities:
+    - docker.runtime
+    extension_namespace: docker
+    extension_values: {}
+  relationship_resolvers: []
+  operational_profiles: []
+  evidence_intents: []
+  collectors: []
+  causal_templates: []
+  action_types:
+  - schema_version: kubeops.io/v1
+    action_type_id: docker-host.container.start.v1
+    title: Start Docker container
+    description: ''
+    parameter_schema:
+      required:
+      - container
+      properties:
+        container:
+          type: string
+    preconditions: []
+    expected_effects:
+    - container_running
+    possible_side_effects: []
+    required_capabilities:
+    - docker.container.start
+    supported_modes:
+    - live
+    - simulation
+    executor_id: docker.cli
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R1
+      blast_radius: single_component
+      availability_risk: bounded
+      data_risk: none
+      security_risk: none
+      reversible: true
+      idempotent: true
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    rollback_action_type_id: docker-host.container.stop.v1
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  - schema_version: kubeops.io/v1
+    action_type_id: docker-host.container.stop.v1
+    title: Stop Docker container
+    description: ''
+    parameter_schema:
+      required:
+      - container
+      properties:
+        container:
+          type: string
+    preconditions: []
+    expected_effects:
+    - container_stopped
+    possible_side_effects: []
+    required_capabilities:
+    - docker.container.stop
+    supported_modes:
+    - live
+    - simulation
+    executor_id: docker.cli
+    default_risk:
+      schema_version: kubeops.io/v1
+      risk_class: R1
+      blast_radius: single_component
+      availability_risk: bounded
+      data_risk: none
+      security_risk: none
+      reversible: true
+      idempotent: true
+      rationale: []
+    completion_condition_ids: []
+    verification_condition_ids: []
+    verification_conditions: []
+    rollback_action_type_id: docker-host.container.start.v1
+    timeout_seconds: 120
+    max_attempts: 1
+    metadata:
+      pack_managed: true
+  lifecycle_profiles: []
+  verification_templates: []
+  redaction_rules: []
+  scenario_coverage:
+  - schema_version: kubeops.io/v1
+    family_ids:
+    - dependency.endpoint_unreachable
+    - runtime.process_unavailable
+    invariant_families:
+    - reachability
+    - liveness
+    disturbance_mechanisms: []
+    topology_patterns:
+    - host_to_cluster
+    support_level: executable
+metadata: {}

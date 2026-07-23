@@ -136,6 +136,7 @@ class HypothesisEngine:
         edges: list[CausalEdge] = []
         by_id: dict[str, Hypothesis] = {}
         generic_template = self._catalog.template("operational.invariant_violation.v1")
+        entity_types = {item.entity_id: {item.entity_type, *item.entity_type_lineage} for item in topology.entities}
 
         for symptom in symptoms:
             if symptom.invariant_family is None:
@@ -147,6 +148,9 @@ class HypothesisEngine:
             parent_hypothesis_id: str | None = None
             for template in sorted(templates, key=lambda item: (item.specificity, item.template_id)):
                 if template.symptom_types and symptom.symptom_type not in template.symptom_types:
+                    continue
+                supported_types = set(template.metadata.get("supported_entity_types", []))
+                if supported_types and not any(entity_types.get(subject_id, set()) & supported_types for subject_id in symptom.subject_ids):
                     continue
                 subject = symptom.subject_ids[0] if symptom.subject_ids else "unknown subject"
                 hypothesis_id = f"hyp-{hashlib.sha256(f'{symptom.symptom_id}:{template.template_id}'.encode()).hexdigest()[:18]}"
