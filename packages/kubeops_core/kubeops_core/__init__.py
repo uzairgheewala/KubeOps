@@ -1,24 +1,25 @@
-"""KubeOps Release 0.1 core package."""
+"""KubeOps Release 0.2 core package."""
 
-from .models.base import SchemaModel
-from .models.entity import OperationalEntity
-from .models.relationship import Relationship
-from .models.invariant import InvariantDefinition
-from .models.scenario import ScenarioFamily, ScenarioInstance
+from .discovery import DiscoveryCollector, FixtureDiscoverySource, KubectlDiscoverySource
+from .environments import EnvironmentIntelligenceService
+from .health import HealthAssessmentEngine, ProfileCompiler
+from .models import (
+    EnvironmentDefinition,
+    EnvironmentSnapshot,
+    InvariantDefinition,
+    OperationalEntity,
+    OperationalProfileAssessment,
+    Relationship,
+    ScenarioFamily,
+    ScenarioInstance,
+    SnapshotDiff,
+    TopologyGraph,
+)
 from .scenarios.compiler import ScenarioCompiler
 from .scenarios.composer import ScenarioComposer
 from .simulator.engine import SimulationEngine
+from .topology import TopologyCompiler
 
-__all__ = [
-    "SchemaModel",
-    "OperationalEntity",
-    "Relationship",
-    "InvariantDefinition",
-    "ScenarioFamily",
-    "ScenarioInstance",
-    "ScenarioCompiler",
-    "ScenarioComposer",
-    "SimulationEngine",
-]
+__all__ = [name for name in globals() if not name.startswith("_")]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

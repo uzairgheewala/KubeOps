@@ -25,7 +25,8 @@ class Observation(SchemaModel):
 
     observation_id: str
     entity_id: str
-    observed_at: int = Field(ge=0)
+    observed_at: int = Field(default=0, ge=0)
+    observed_at_iso: str | None = None
     state: dict[str, Any]
     source: str = "simulator"
     authority: str = "authoritative"

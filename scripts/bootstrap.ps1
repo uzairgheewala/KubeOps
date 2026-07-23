@@ -10,4 +10,5 @@ Pop-Location
 $env:PYTHONPATH = "$PWD\packages\kubeops_core;$PWD\packages\kubeops_cli;$PWD\control_plane"
 python control_plane\manage.py migrate
 python control_plane\manage.py seed_release_01
-Write-Host "KubeOps Release 0.1 is bootstrapped."
+python control_plane\manage.py seed_release_02
+Write-Host "KubeOps Release 0.2 is bootstrapped."

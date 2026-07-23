@@ -8,7 +8,7 @@ from .base import TypedRegistry
 
 
 class RegistryCatalog:
-    """Unified introspection catalog for every Release 0.1 extension surface."""
+    """Unified introspection catalog for every KubeOps extension surface."""
 
     def __init__(self) -> None:
         self._entries: TypedRegistry[RegistryEntry] = TypedRegistry("core registry catalog")

@@ -1,3 +1,29 @@
+from .artifact import OperationalArtifact
+from .discovery import (
+    DiscoveryBundle,
+    DiscoveryIssue,
+    EntityChange,
+    EnvironmentSnapshot,
+    FieldChange,
+    RelationshipChange,
+    ResourceDocument,
+    SnapshotDiff,
+)
+from .environment import (
+    AccessCheck,
+    AccessMethodDefinition,
+    AccessValidationResult,
+    EnvironmentDefinition,
+    PermissionGap,
+)
+from .health import (
+    CompiledOperationalProfile,
+    EntitySelector,
+    InvariantTemplate,
+    OperationalProfileAssessment,
+    OperationalProfileSpec,
+)
+from .topology import TopologyGraph
 from .action import ScheduledMutation, StateMutation, TransitionRule
 from .base import SchemaModel
 from .composition import CompositionComponent, ScenarioComposition

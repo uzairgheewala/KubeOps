@@ -6,12 +6,14 @@ bootstrap:
 	cd ui && npm install
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
 
 migrate:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
 
 seed:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_01
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
 
 api:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_cli:control_plane python control_plane/manage.py runserver 0.0.0.0:8000

@@ -1,119 +1,74 @@
-# KubeOps Release 0.1
+# KubeOps Release 0.2
 
 KubeOps is a typed operational reasoning platform for Kubernetes environments.
-Release 0.1 implements the simulation-first foundation before any live-cluster
-authority is introduced.
+Release 0.2 turns the Release 0.1 scenario laboratory into a useful **read-only
+cluster-intelligence system** while retaining the same canonical operational IR.
 
-It is not a collection of shell scripts and it is not an AI wrapper around
-`kubectl`. The release provides one canonical operational metamodel shared by a
-scenario compiler, deterministic simulator, append-oriented artifact system,
-Django API, CLI, and interactive web workbench.
+It can now register environments, validate observer access, collect live or
+recorded Kubernetes state, sanitize sensitive objects, compile an operational
+dependency graph, evaluate reusable health profiles, compare immutable
+snapshots, export replayable fixtures, and visualize the result in the web
+workbench. It still has **zero mutation authority**.
 
-## What is included
+## Release 0.2 capabilities
 
-- Versioned, immutable canonical operational IR.
-- Deterministic serialization and SHA-256 content identity.
-- Typed extension registry and JSON Schema introspection.
-- Scenario-family inheritance with semantic-identity merging.
-- Typed parameter binding and semantic constraint validation.
-- Concurrent, sequential, conditional, masking, and
-  recovery-interference composition.
-- Deterministic event-driven simulation.
-- Immediate, bounded-eventual, and stable-window invariants.
-- Separate world truth and observer projections.
-- Hidden, partial, delayed, and contradictory observation profiles.
-- Immutable run artifacts with explicit derivation links.
-- Django REST control plane with SQLite or PostgreSQL.
-- Typer/Rich CLI.
-- React/TypeScript Scenario Lab, Composition Lab, topology explorer, timeline,
-  invariant inspector, canonical schema browser, and artifact explorer.
-- Linux/macOS, PowerShell, Docker Compose, and CI workflows.
+- Versioned environment and access-method definitions.
+- Read-only access validation for fixture and `kubectl` sources.
+- Sanitized Kubernetes discovery with partial-success and permission-gap
+  reporting.
+- Immutable snapshots, content hashes, snapshot manifests, and structural diffs.
+- Provider-neutral normalization into the Release 0.1 `OperationalEntity`,
+  `Relationship`, `Observation`, and invariant contracts.
+- Topology compilation for ownership, reconciliation, selection, routing,
+  scheduling, identity, configuration, secrets, storage, EndpointSlices,
+  ingress, and RBAC.
+- Operational-profile compilation and graph-aware temporal health evaluation.
+- Live → sanitized snapshot → replayable fixture workflow.
+- Environment, inventory, topology, health, history, diff, and artifact UI.
+- Django persistence and REST APIs for environments and snapshot projections.
+- Typer/Rich CLI commands for validation, collection, diffing, and profile
+  evaluation.
+- All Release 0.1 simulation and scenario-family functionality remains intact.
 
-## Release boundary
+## Authority boundary
 
-Release 0.1 does **not** connect to or mutate a live Kubernetes cluster. That is
-intentional. It defines the contracts that fixture and live modes will use in
-later releases.
-
-The IR already includes forward-compatible schemas for:
-
-- Operational objectives and profiles.
-- Evidence intents, symptoms, hypotheses, and probes.
-- Typed action definitions and instances.
-- Execution policies and decisions.
-- Recovery plans.
-- Verification conditions and results.
-- Diagnosis and recovery certificates.
-
-Those schemas are inspectable and validated in Release 0.1, but no diagnosis or
-execution engine is granted authority yet.
-
-## Architecture
+Release 0.2 may read from a live cluster through `kubectl`, but it never creates,
+patches, deletes, restarts, or otherwise mutates Kubernetes or host state.
+Observer access and future executor access remain separate architectural
+capabilities.
 
 ```text
-Scenario-family YAML
+Environment definition
         ↓
-ScenarioFamilyRegistry
+Access-source resolution (fixture or kubectl)
         ↓
-Inheritance + bindings + semantic constraints
+Read-only access validation
         ↓
-ScenarioInstance or composed ScenarioInstance
+Raw collection + mandatory sanitization
         ↓
-Deterministic SimulationEngine
+Canonical entities, relationships, observations
         ↓
-Truth snapshots + observation projections + invariant evaluations
+Topology compiler
         ↓
-Immutable artifacts + Django metadata
+Immutable environment snapshot
         ↓
-CLI / REST API / Scenario Lab / Composition Lab
+Operational-profile health assessment
+        ↓
+Artifacts / REST API / CLI / Web workbench
 ```
 
-See [the detailed architecture](docs/architecture-release-01.md),
-[release notes](RELEASE_NOTES.md), and [validation record](VALIDATION.md).
+See [the Release 0.2 architecture](docs/architecture-release-02.md) and
+[ADR 0002](docs/adr/0002-read-only-intelligence-boundary.md).
 
-## Scenario-family basis
+## Applying the delta package
 
-| Family | Architectural capability |
-|---|---|
-| `entity.required_absent.v1` | Existence and downstream propagation |
-| `dependency.failure.v1` | Reusable abstract dependency topology |
-| `dependency.endpoint_unreachable.v1` | Layered name-resolution, route, transport, and TLS failure |
-| `dependency.authentication_failure.v1` | Authentication distinct from authorization |
-| `controller.convergence_failure.v1` | Bounded progress and delayed propagation |
+The distributed Release 0.2 archive is a delta. Extract it over the root of an
+existing Release 0.1 checkout, preserving paths and replacing changed files.
+No Release 0.1 source files are intentionally deleted.
 
-The endpoint and authentication families inherit the same dependency blueprint.
-Concrete component identities, failure layers, disturbance choices, and
-observation profiles vary without introducing new simulator code paths.
+## Quick start
 
-## UI workbench
-
-The React application contains three principal surfaces.
-
-### Scenario Lab
-
-- Select an effective scenario family.
-- Bind generic parameters to concrete entities.
-- Select a disturbance and observation profile.
-- Compile or execute the scenario.
-- Step through snapshots.
-- Toggle observed state versus world truth.
-- Inspect topology, invariant state, timeline events, raw entities, and
-  immutable artifacts.
-
-### Composition Lab
-
-- Combine two families under concurrent, sequential, masking, or
-  recovery-interference semantics.
-- Execute one namespaced world.
-- Inspect interleaved events and combined invariant propagation.
-
-### Canonical IR
-
-- Browse extension-registry categories.
-- Inspect all canonical JSON Schemas.
-- Examine scenario-family lineage and capabilities.
-
-## Quick start with Docker
+### Docker
 
 ```bash
 cp .env.example .env
@@ -123,9 +78,9 @@ docker compose up --build
 Open:
 
 - UI: `http://localhost:5173`
-- API status: `http://localhost:8000/api/v1/system/status`
+- API: `http://localhost:8000/api/v1/system/status`
 
-## Local bootstrap
+### Local bootstrap
 
 Linux/macOS:
 
@@ -141,160 +96,236 @@ Windows PowerShell:
 .\scripts\dev.ps1
 ```
 
-Local settings default to SQLite unless `DATABASE_URL` is set. Docker Compose
-uses PostgreSQL 16.
+The bootstrap migrates both releases and seeds the Release 0.1 scenario catalog,
+Release 0.2 operational profiles, and the fixture-backed demonstration
+environment.
 
-## CLI
+## Fixture-backed demonstration
 
-```bash
-./scripts/kubeops.sh family list
-./scripts/kubeops.sh family validate
-./scripts/kubeops.sh family show dependency.endpoint_unreachable.v1
+A reusable environment definition is included at:
 
-./scripts/kubeops.sh registry list --category scenario_family
-
-./scripts/kubeops.sh scenario compile dependency.endpoint_unreachable.v1 \
-  --binding consumer_name="Builder" \
-  --binding provider_name="Kubernetes API" \
-  --binding failure_layer=tls
-
-./scripts/kubeops.sh scenario run dependency.authentication_failure.v1 \
-  --binding consumer_name="Builder" \
-  --binding provider_name="Kubernetes API" \
-  --observation-profile consumer_only
-
-./scripts/kubeops.sh composition run \
-  scenarios/basis/concurrent-network-controller.yaml
+```text
+environments/demo-kind-fixture.v1.yaml
 ```
 
-PowerShell users can replace `kubeops.sh` with `kubeops.ps1`.
-
-## API examples
-
-Compile a scenario:
+It exposes both degraded and healthy views of the same synthetic Kind topology.
+No cluster is required.
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/scenarios/compile \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "family_id": "dependency.endpoint_unreachable.v1",
-    "bindings": {
-      "consumer_name": "Builder",
-      "provider_name": "Kubernetes API",
-      "failure_layer": "tls"
-    },
-    "observation_profile_id": "delayed_provider"
-  }'
+./scripts/kubeops.sh environment validate \
+  environments/demo-kind-fixture.v1.yaml \
+  --method-id recorded-degraded
+
+./scripts/kubeops.sh snapshot collect \
+  environments/demo-kind-fixture.v1.yaml \
+  --method-id recorded-degraded \
+  --output /tmp/degraded.json
+
+./scripts/kubeops.sh snapshot collect \
+  environments/demo-kind-fixture.v1.yaml \
+  --method-id recorded-healthy \
+  --output /tmp/healthy.json
+
+./scripts/kubeops.sh snapshot diff \
+  /tmp/degraded.json /tmp/healthy.json
+
+./scripts/kubeops.sh profile evaluate \
+  local-development-usable.v1 /tmp/degraded.json
 ```
 
-Run and persist artifacts:
+Expected distinction:
+
+- `cluster-observable.v1` remains healthy in both fixtures.
+- `local-development-usable.v1` is unhealthy in the degraded fixture and
+  healthy in the healthy fixture.
+- The structural diff identifies three changed entities and one changed
+  relationship.
+
+## Live read-only collection
+
+Register an environment using a `kubectl` or `kubeconfig` access method. KubeOps
+executes bounded read-only commands and records the selected context, server,
+cluster version, permissions, and source fingerprint before collection.
+
+Example definition:
+
+```yaml
+schema_version: kubeops.io/v1
+environment_id: local-kind
+name: Local Kind
+environment_class: development
+provider: local
+cluster_provider: kind
+access_methods:
+  - schema_version: kubeops.io/v1
+    method_id: observer
+    method_type: kubectl
+    context_name: kind-local
+    read_only: true
+default_access_method_id: observer
+operational_profile_ids:
+  - cluster-observable.v1
+  - local-development-usable.v1
+```
+
+Then run:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/scenarios/run \
-  -H 'Content-Type: application/json' \
-  -d '{"family_id":"controller.convergence_failure.v1"}'
+./scripts/kubeops.sh environment validate local-kind.yaml
+./scripts/kubeops.sh snapshot collect local-kind.yaml --output local-kind.json
 ```
 
-Inspect the canonical registry and schemas:
+Secret values are removed before `ResourceDocument` creation or artifact
+persistence. Secret and ConfigMap key names remain available so missing-key and
+reference diagnosis can be added later without retaining values.
 
-```bash
-curl http://localhost:8000/api/v1/registry
-curl http://localhost:8000/api/v1/schemas/RecoveryPlan
+## Web workbench
+
+Release 0.2 makes **Environments** the default UI surface.
+
+### Environment registry
+
+- Register fixture, `kubectl`, or explicit kubeconfig access.
+- Validate observer connectivity and capabilities.
+- Review source fingerprints and permission gaps.
+
+### Inventory
+
+- Search normalized resources.
+- Filter by namespace.
+- Inspect provider-neutral desired and observed state.
+- Confirm sanitization before artifact export.
+
+### Topology
+
+- Filter by operational plane and namespace.
+- Trace typed edges and their provenance.
+- Inspect inferred versus authoritative relationships.
+- Hide healthy entities while retaining the full graph.
+
+### Health
+
+- Select an operational profile.
+- Group evaluations by invariant family.
+- Inspect evidence, predicate result, temporal state, and explanation.
+- Preserve `unknown`, `pending`, and `not_applicable` separately from healthy.
+
+### Snapshots and artifacts
+
+- Browse immutable history.
+- Compare two snapshots structurally.
+- Inspect artifact lineage and hashes.
+- Export a snapshot as a directly replayable sanitized fixture.
+
+The Scenario Lab, Composition Lab, canonical schema browser, and Release 0.1
+artifact explorer remain available unchanged.
+
+## Operational profiles
+
+Profiles live in `profiles/` and compile invariant templates over matching
+entities.
+
+Included profiles:
+
+### `cluster-observable.v1`
+
+Checks that the cluster can be meaningfully inspected, including node readiness,
+CoreDNS availability, and the presence of expected cluster-level structures.
+
+### `local-development-usable.v1`
+
+Checks that a development environment is actually usable, including:
+
+- Node readiness.
+- Desired versus available workload replicas.
+- Controller generation convergence.
+- Pod readiness.
+- Service-to-ready-Pod relationships.
+- PVC binding.
+
+A profile can produce many concrete invariant instances without hard-coding
+resource names.
+
+## Snapshot and topology semantics
+
+Each snapshot retains:
+
+- Sanitized raw resource documents.
+- Canonical entities.
+- Typed relationships.
+- Observations.
+- Discovery issues.
+- Permission gaps.
+- Source fingerprint.
+- Collection summary.
+- Artifact references.
+
+The topology compiler currently derives:
+
+- Namespace containment.
+- Owner-reference ownership and controller chains.
+- Pod-to-node scheduling.
+- ServiceAccount identity usage.
+- ConfigMap, Secret, and PVC references.
+- Service selector matches.
+- EndpointSlice membership.
+- Ingress routing.
+- PV/PVC/StorageClass bindings.
+- RoleBinding subject and role relationships.
+
+Every derived edge carries a confidence and provenance record.
+
+## REST API additions
+
+```text
+GET/POST /api/v1/environments
+GET/PUT/DELETE /api/v1/environments/{environment_id}
+POST /api/v1/environments/{environment_id}/validate
+GET/POST /api/v1/environments/{environment_id}/snapshots
+GET /api/v1/snapshots/{snapshot_id}
+GET /api/v1/snapshots/{snapshot_id}/topology
+GET /api/v1/snapshots/{snapshot_id}/health
+GET /api/v1/snapshots/{snapshot_id}/diff
+GET /api/v1/snapshots/{snapshot_id}/export
+GET /api/v1/operational-profiles
+GET /api/v1/operational-profiles/{profile_id}
 ```
 
-## Scenario-family authoring
+All Release 0.1 scenario, composition, run, artifact, registry, and schema routes
+remain available.
 
-A family contains:
+## Repository additions
 
-- Typed parameters.
-- Semantic constraints.
-- A structural signature.
-- Entity and relationship templates.
-- Invariant templates.
-- Transition rules.
-- Observation profiles.
-- One or more disturbances.
-
-Templates use `${binding_name}`. A placeholder occupying an entire scalar keeps
-the original typed value; embedded placeholders are interpolated as text.
-
-Child families set `parent_family_id`. The compiler merges named objects by
-stable semantic identity:
-
-- `entity_id`
-- `relationship_id`
-- `invariant_id`
-- `rule_id`
-- `profile_id`
-- `disturbance_id`
-
-## Observation semantics
-
-Every snapshot contains two states:
-
-- **World truth** — actual simulated state.
-- **Observed state** — state visible under the selected observation profile.
-
-Profiles support hidden entities, hidden paths, observation lag, and
-contradictory overrides. Invariants evaluate observed state, so missing evidence
-produces `unknown` rather than fabricated confidence.
-
-## Artifacts
-
-Every run emits:
-
-- Compiled scenario instance.
-- Event timeline.
-- Snapshot sequence.
-- Observation set.
-- Run manifest.
-
-Artifacts are immutable JSON documents with SHA-256 payload hashes. The
-run-manifest records derivation links to all source artifacts. The Django
-control plane stores searchable metadata while payloads pass through the
-artifact-store abstraction.
+```text
+environments/                  Reusable environment definitions
+profiles/                      Operational-profile specifications
+lab/fixtures/                  Sanitized discovery fixtures
+packages/kubeops_core/
+  artifacts/                   General operational artifact store
+  discovery/                   Fixture/kubectl sources and normalization
+  environments/                Read-only intelligence orchestration
+  health/                      Profile assessment engine
+  profiles/                    Profile registry
+  topology/                    Dependency graph compiler
+control_plane/api/             Environment and snapshot persistence/API
+ui/src/features/environments/  Read-only workbench
+```
 
 ## Validation
-
-After bootstrap:
 
 ```bash
 ./scripts/test.sh
 ```
 
-The suite includes:
-
-- Canonical-hash stability.
-- Extended IR round-tripping.
-- Family inheritance and constraint rejection.
-- Cross-domain family reuse.
-- Temporal invariants.
-- Failure propagation.
-- Partial-observation unknowns.
-- Delayed controller effects.
-- Composition semantics and one-shot rule behavior.
-- Renaming invariance through Hypothesis.
-- Django compile, run, persistence, and artifact APIs.
-- TypeScript production build.
-
-The exact checks executed for this delivered archive and sandbox dependency
-limitations are recorded in [VALIDATION.md](VALIDATION.md).
-
-## Repository map
-
-```text
-packages/kubeops_core   Canonical IR, registries, compiler, simulator, artifacts
-packages/kubeops_cli    CLI
-control_plane           Django API and persistence
-ui                      React operational scenario workbench
-scenarios/families      Executable scenario-family definitions
-scenarios/basis         Representative basis and compositions
-docs                    Architecture and ADRs
-tests                   Unit, property, integration, and security-ready layout
-```
+The delivered validation performed in this environment is documented in
+[VALIDATION.md](VALIDATION.md). Django/DRF and the actual Vite runtime dependencies
+were not available in this sandbox, so those dependency-gated boundaries are
+included and statically validated but must be executed after normal bootstrap or
+in CI.
 
 ## Next release boundary
 
-Release 0.2 can now add read-only environment registration, Kubernetes snapshot
-collection, fixture replay, topology compilation from real objects, and
-operational-profile health evaluation without replacing the Release 0.1 core.
+Release 0.3 adds active investigation while remaining read-only:
+question-oriented evidence intents, collector selection, deterministic causal
+hypotheses, contradiction handling, parent-family fallback, diagnosis
+certificates, and an interactive probe workflow.

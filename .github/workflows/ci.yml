@@ -25,6 +25,7 @@ jobs:
       PYTHONPATH: packages/kubeops_core:packages/kubeops_cli:control_plane
       DATABASE_URL: postgresql://kubeops:kubeops@localhost:5432/kubeops
       KUBEOPS_SCENARIO_DIR: ${{ github.workspace }}/scenarios
+      KUBEOPS_PROFILE_DIR: ${{ github.workspace }}/profiles
       KUBEOPS_ARTIFACT_DIR: ${{ github.workspace }}/artifacts
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +36,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python control_plane/manage.py migrate
       - run: python control_plane/manage.py seed_release_01
+      - run: python control_plane/manage.py seed_release_02
       - run: ruff check packages control_plane tests
       - run: pytest --cov --cov-report=term-missing
 

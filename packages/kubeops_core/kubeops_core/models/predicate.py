@@ -39,6 +39,26 @@ class FieldGte(SchemaModel):
     value: float
 
 
+class FieldsEqual(SchemaModel):
+    kind: ClassVar[str] = "FieldsEqual"
+    predicate_type: Literal["fields_equal"] = "fields_equal"
+    left_entity_id: str
+    left_path: str
+    right_entity_id: str
+    right_path: str
+
+
+class RelatedCountGte(SchemaModel):
+    kind: ClassVar[str] = "RelatedCountGte"
+    predicate_type: Literal["related_count_gte"] = "related_count_gte"
+    source_entity_id: str
+    relationship_types: set[str] = Field(default_factory=set)
+    direction: Literal["outgoing", "incoming", "either"] = "outgoing"
+    target_path: str | None = None
+    target_equals: Any = None
+    minimum: int = Field(ge=0)
+
+
 class FieldLte(SchemaModel):
     kind: ClassVar[str] = "FieldLte"
     predicate_type: Literal["field_lte"] = "field_lte"
@@ -72,6 +92,8 @@ Predicate = Annotated[
         FieldExists,
         FieldGte,
         FieldLte,
+        FieldsEqual,
+        RelatedCountGte,
         AllOfPredicate,
         AnyOfPredicate,
         NotPredicate,

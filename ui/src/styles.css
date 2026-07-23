@@ -216,3 +216,105 @@ button { color: inherit; }
 .artifact-detail { min-width: 0; }
 .artifact-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 @media (max-width: 760px) { .artifact-explorer { grid-template-columns: 1fr; } .artifact-list { border-right: 0; border-bottom: 1px solid var(--border); } }
+
+/* Release 0.2 environment intelligence workbench */
+.environment-workbench { display: grid; grid-template-columns: 310px minmax(0, 1fr); min-height: calc(100vh - 72px); }
+.environment-rail { border-right: 1px solid var(--border); background: #0d1117; padding: 22px; overflow-y: auto; }
+.full-button { width: 100%; margin-top: 16px; }
+.environment-create-form { margin-top: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.environment-create-form .field { margin-top: 10px; }
+.environment-list { display: grid; margin-top: 18px; border-top: 1px solid var(--border); }
+.environment-list > button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 14px 8px; border: 0; border-bottom: 1px solid var(--border); background: transparent; text-align: left; cursor: pointer; }
+.environment-list > button:hover, .environment-list > button.is-selected { background: var(--surface-2); }
+.environment-list strong, .environment-list small { display: block; }
+.environment-list small { margin-top: 4px; color: var(--muted); }
+.environment-main { min-width: 0; padding: 24px; background: radial-gradient(circle at 80% -10%, rgba(119, 167, 255, 0.10), transparent 30%); }
+.environment-titlebar { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 16px; }
+.environment-titlebar h1 { margin: 4px 0; font-size: 26px; }
+.environment-titlebar p { margin: 0; color: var(--muted); }
+.environment-actions { display: flex; gap: 10px; }
+.environment-error { margin: 0 0 16px; }
+.environment-metrics { margin-bottom: 16px; }
+.workspace-tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 16px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.workspace-tabs button { flex: 1; min-width: 98px; border: 0; border-radius: 8px; padding: 9px 12px; background: transparent; color: var(--muted); cursor: pointer; text-transform: capitalize; }
+.workspace-tabs button.active { background: var(--surface-3); color: var(--text); }
+.workspace-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.workspace-grid .panel + .panel { margin-top: 0; }
+.span-two { grid-column: 1 / -1; }
+.access-checks { display: grid; }
+.access-check { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.access-check strong { display: block; }
+.access-check p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.summary-list { display: grid; }
+.summary-list > div { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--border); }
+.summary-list span { color: var(--muted); }
+.summary-list code { overflow-wrap: anywhere; color: var(--text); }
+.diff-workspace { display: grid; grid-template-columns: minmax(280px, 0.8fr) 1.2fr; gap: 0; }
+.diff-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); }
+.diff-metrics > div { padding: 16px; background: var(--surface); }
+.diff-metrics span, .diff-metrics strong { display: block; }
+.diff-metrics span { color: var(--muted); font-size: 12px; }
+.diff-metrics strong { margin-top: 5px; font-size: 22px; }
+.diff-changes { border-left: 1px solid var(--border); }
+.diff-row { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--border); }
+.diff-row strong, .diff-row small { display: block; overflow-wrap: anywhere; }
+.diff-row small { margin-top: 3px; color: var(--muted); }
+.inventory-toolbar, .topology-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.compact-control { min-width: 190px; margin-top: 0; }
+.inventory-table-wrap { overflow-x: auto; }
+.inventory-table { width: 100%; border-collapse: collapse; }
+.inventory-table th, .inventory-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.inventory-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.inventory-table td { font-size: 13px; }
+.inventory-table td strong, .inventory-table td small { display: block; }
+.inventory-table td small { margin-top: 3px; color: var(--muted); max-width: 330px; overflow-wrap: anywhere; }
+.inventory-table td code { display: block; max-width: 480px; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.topology-toolbar { align-items: end; }
+.topology-check { margin: 0 0 9px; }
+.topology-scroll { overflow: auto; max-height: 620px; background: #0b0f14; }
+.environment-topology-svg { display: block; width: 100%; min-width: 720px; }
+.plane-label { fill: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.interactive-edge { cursor: pointer; }
+.edge-selected .topology-edge { stroke: var(--accent); stroke-width: 3; }
+.selection-inspector { border-top: 1px solid var(--border); }
+.health-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--muted); }
+.health-matrix { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+.health-family { min-width: 0; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.health-family-title { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--surface-2); text-transform: capitalize; }
+.health-family-title span { color: var(--muted); font-size: 12px; }
+.health-cell { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 12px 16px; border-top: 1px solid var(--border); }
+.health-cell strong, .health-cell small { display: block; overflow-wrap: anywhere; }
+.health-cell strong { font-size: 12px; }
+.health-cell small { margin-top: 4px; color: var(--muted); line-height: 1.45; }
+.snapshot-list { display: grid; }
+.snapshot-list > button { display: flex; justify-content: space-between; gap: 18px; align-items: center; width: 100%; padding: 14px 18px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.snapshot-list > button:hover, .snapshot-list > button.is-selected { background: var(--surface-2); }
+.snapshot-list strong, .snapshot-list small { display: block; }
+.snapshot-list small { margin-top: 4px; color: var(--muted); overflow-wrap: anywhere; }
+.snapshot-stats { display: flex; align-items: center; gap: 10px; }
+.snapshot-stats small { margin: 0; white-space: nowrap; }
+.snapshot-inspector { border-top: 1px solid var(--border); }
+.form-check { display: flex; align-items: center; gap: 8px; }
+.form-check-input { width: 17px; height: 17px; accent-color: var(--accent); }
+.form-check-label { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 1100px) {
+  .environment-workbench { grid-template-columns: 260px minmax(0, 1fr); }
+  .workspace-grid { grid-template-columns: 1fr; }
+  .span-two { grid-column: auto; }
+  .diff-workspace { grid-template-columns: 1fr; }
+  .diff-changes { border-left: 0; border-top: 1px solid var(--border); }
+}
+
+@media (max-width: 760px) {
+  .environment-workbench { display: block; }
+  .environment-rail { border-right: 0; border-bottom: 1px solid var(--border); }
+  .environment-main { padding: 14px; }
+  .environment-titlebar { flex-direction: column; }
+  .environment-actions { width: 100%; }
+  .environment-actions .button { flex: 1; }
+  .workspace-tabs button { flex: 0 0 auto; }
+  .summary-list > div { grid-template-columns: 1fr; }
+  .health-matrix { grid-template-columns: 1fr; }
+  .snapshot-list > button { align-items: flex-start; flex-direction: column; }
+}

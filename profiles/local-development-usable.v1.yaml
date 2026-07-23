@@ -1,0 +1,71 @@
+schema_version: kubeops.io/v1
+profile_id: local-development-usable.v1
+version: 1.0.0
+title: Local development usable
+description: Nodes, platform workloads, application workloads, Services, Pods, and claims satisfy the minimum contracts for development use.
+environment_classes: [development]
+objective_ids: [establish-development-environment]
+invariant_templates:
+  - template_id: node.ready
+    title: Node is Ready
+    family: readiness
+    selector:
+      entity_types: [kubernetes.node]
+    check_type: node_ready
+    required: true
+    severity: critical
+    temporal:
+      operator: stable_for
+      stable_for_seconds: 0
+    affected_objectives: [establish-development-environment]
+  - template_id: workload.available
+    title: Workload has desired ready capacity
+    family: readiness
+    selector:
+      entity_types:
+        - kubernetes.deployment
+        - kubernetes.statefulset
+        - kubernetes.daemonset
+    check_type: workload_available
+    required: true
+    severity: error
+    affected_objectives: [establish-development-environment]
+  - template_id: controller.progress
+    title: Controller observed current generation
+    family: lifecycle_progress
+    selector:
+      entity_types:
+        - kubernetes.deployment
+        - kubernetes.statefulset
+        - kubernetes.daemonset
+    check_type: controller_progress
+    required: false
+    severity: warning
+  - template_id: pod.ready
+    title: Pod is Ready
+    family: readiness
+    selector:
+      entity_types: [kubernetes.pod]
+      exclude_namespaces: [kube-system]
+    check_type: pod_ready
+    required: false
+    severity: warning
+  - template_id: service.endpoints
+    title: Service has a ready backing Pod
+    family: readiness
+    selector:
+      entity_types: [kubernetes.service]
+    check_type: service_has_ready_endpoints
+    parameters:
+      minimum: 1
+    required: false
+    severity: warning
+  - template_id: pvc.bound
+    title: PersistentVolumeClaim is Bound
+    family: durability
+    selector:
+      entity_types: [kubernetes.persistentvolumeclaim]
+    check_type: pvc_bound
+    required: true
+    severity: error
+    affected_objectives: [establish-development-environment]

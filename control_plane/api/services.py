@@ -6,7 +6,9 @@ from pathlib import Path
 from django.conf import settings
 
 from kubeops_core.artifacts import FileArtifactStore
+from kubeops_core.environments import EnvironmentIntelligenceService
 from kubeops_core.models.registry import RegistryEntry
+from kubeops_core.profiles import OperationalProfileRegistry
 from kubeops_core.registry import ScenarioFamilyRegistry, build_builtin_catalog
 from kubeops_core.scenarios import ScenarioCompiler
 from kubeops_core.simulator import SimulationEngine
@@ -19,6 +21,11 @@ def scenario_registry() -> ScenarioFamilyRegistry:
     return registry
 
 
+@lru_cache(maxsize=1)
+def profile_registry() -> OperationalProfileRegistry:
+    registry = OperationalProfileRegistry()
+    registry.load_directory(settings.KUBEOPS_PROFILE_DIR)
+    return registry
 
 
 @lru_cache(maxsize=1)
@@ -40,6 +47,22 @@ def registry_catalog():
                 },
             )
         )
+    for profile in profile_registry().values():
+        catalog.register(
+            RegistryEntry(
+                registry_key=profile.profile_id,
+                category="operational_profile",
+                version=profile.version,
+                title=profile.title,
+                description=profile.description,
+                capabilities={"compile", "evaluate"},
+                metadata={
+                    "environment_classes": sorted(profile.environment_classes),
+                    "template_count": len(profile.invariant_templates),
+                    "content_hash": profile.content_hash,
+                },
+            )
+        )
     return catalog
 
 
@@ -54,13 +77,20 @@ def simulation_engine() -> SimulationEngine:
 
 
 @lru_cache(maxsize=1)
+def environment_intelligence() -> EnvironmentIntelligenceService:
+    return EnvironmentIntelligenceService()
+
+
+@lru_cache(maxsize=1)
 def artifact_store() -> FileArtifactStore:
     return FileArtifactStore(settings.KUBEOPS_ARTIFACT_DIR)
 
 
 def clear_service_caches() -> None:
     scenario_registry.cache_clear()
+    profile_registry.cache_clear()
     scenario_compiler.cache_clear()
     registry_catalog.cache_clear()
     simulation_engine.cache_clear()
+    environment_intelligence.cache_clear()
     artifact_store.cache_clear()

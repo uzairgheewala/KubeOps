@@ -1,0 +1,26 @@
+schema_version: kubeops.io/v1
+profile_id: cluster-observable.v1
+version: 1.0.0
+title: Cluster observable
+description: Minimum read-only evidence required to reason about a Kubernetes environment.
+environment_classes: [development, staging, production]
+objective_ids: [observe-environment]
+invariant_templates:
+  - template_id: node.observed
+    title: Node is observable
+    family: observability
+    selector:
+      entity_types: [kubernetes.node]
+    check_type: entity_observed
+    required: true
+    severity: critical
+    affected_objectives: [observe-environment]
+  - template_id: system-pod.observed
+    title: System Pod is observable
+    family: observability
+    selector:
+      entity_types: [kubernetes.pod]
+      namespaces: [kube-system]
+    check_type: entity_observed
+    required: false
+    severity: warning

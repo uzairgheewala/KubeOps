@@ -42,6 +42,10 @@ export type OperationalEntity = {
   name: string;
   plane: string;
   namespace?: string | null;
+  provider?: string | null;
+  labels?: Record<string, string>;
+  capabilities?: string[];
+  extensions?: Record<string, unknown>;
   desired_state: Record<string, unknown>;
   observed_state: Record<string, unknown>;
 };
@@ -51,6 +55,10 @@ export type Relationship = {
   source_id: string;
   target_id: string;
   relationship_type: string;
+  confidence?: number;
+  provenance?: string;
+  contract?: Record<string, unknown>;
+  propagation?: Record<string, unknown>;
 };
 
 export type InvariantDefinition = {
@@ -131,6 +139,8 @@ export type SystemStatus = {
   mode: string;
   status: string;
   family_count: number;
+  profile_count?: number;
+  environment_count?: number;
   capabilities: string[];
 };
 
@@ -162,4 +172,192 @@ export type ArtifactDetail = ArtifactSummary & {
   media_type: string;
   payload: unknown;
   derived_from: string[];
+};
+
+export type AccessMethodDefinition = {
+  method_id: string;
+  method_type: "kubectl" | "kubeconfig" | "fixture";
+  title: string;
+  context_name?: string | null;
+  kubeconfig_path?: string | null;
+  fixture_path?: string | null;
+  command: string;
+  read_only: boolean;
+  timeout_seconds: number;
+  metadata: Record<string, unknown>;
+};
+
+export type AccessCheck = {
+  check_id: string;
+  title: string;
+  status: string;
+  explanation: string;
+  authority: string;
+  details: Record<string, unknown>;
+};
+
+export type AccessValidation = {
+  validation_id: string;
+  environment_id: string;
+  access_method_id: string;
+  checked_at_iso: string;
+  status: string;
+  target_fingerprint: string;
+  current_context?: string | null;
+  cluster_server?: string | null;
+  cluster_version?: string | null;
+  capabilities: string[];
+  checks: AccessCheck[];
+  permission_gaps: Array<Record<string, unknown>>;
+  metadata: Record<string, unknown>;
+};
+
+export type SnapshotSummary = {
+  snapshot_id: string;
+  environment_id: string;
+  status: string;
+  source_type: string;
+  source_fingerprint: string;
+  captured_at_iso: string;
+  content_hash: string;
+  summary: Record<string, unknown>;
+  entity_count: number;
+  relationship_count: number;
+  assessment_count: number;
+};
+
+export type EnvironmentSummary = {
+  environment_id: string;
+  name: string;
+  environment_class: string;
+  provider: string;
+  cluster_provider: string;
+  host_provider?: string | null;
+  criticality: string;
+  fingerprint: string;
+  active: boolean;
+  updated_at: string;
+  latest_validation?: AccessValidation | null;
+  latest_snapshot?: SnapshotSummary | null;
+  latest_health: OperationalProfileAssessment[];
+};
+
+export type EnvironmentDefinition = {
+  environment_id: string;
+  name: string;
+  environment_class: "simulation" | "development" | "staging" | "production";
+  provider: string;
+  cluster_provider: string;
+  host_provider?: string | null;
+  criticality: string;
+  access_methods: AccessMethodDefinition[];
+  default_access_method_id?: string | null;
+  operational_profile_ids: string[];
+  installed_pack_ids: string[];
+  labels: Record<string, string>;
+  annotations: Record<string, string>;
+  metadata: Record<string, unknown>;
+  fingerprint?: string;
+  latest_validation?: AccessValidation | null;
+  snapshots?: SnapshotSummary[];
+};
+
+export type DiscoveryIssue = {
+  issue_id: string;
+  severity: string;
+  collector_id: string;
+  resource_type?: string | null;
+  message: string;
+  details: Record<string, unknown>;
+};
+
+export type OperationalProfileAssessment = {
+  assessment_id: string;
+  profile_id: string;
+  profile_version: string;
+  environment_id: string;
+  snapshot_id: string;
+  evaluated_at_iso: string;
+  status: string;
+  evaluations: InvariantEvaluation[];
+  required_invariant_ids: string[];
+  optional_invariant_ids: string[];
+  violated_invariant_ids: string[];
+  unknown_invariant_ids: string[];
+  pending_invariant_ids: string[];
+  counts: Record<string, number>;
+  objective_impact: Record<string, string[]>;
+  metadata: Record<string, unknown>;
+};
+
+export type OperationalProfileSpec = {
+  profile_id: string;
+  version: string;
+  title: string;
+  description: string;
+  environment_classes: string[];
+  objective_ids: string[];
+  invariant_templates: Array<Record<string, unknown>>;
+  metadata: Record<string, unknown>;
+  content_hash: string;
+};
+
+export type EnvironmentSnapshot = {
+  snapshot_id: string;
+  environment_id: string;
+  captured_at_iso: string;
+  started_at_iso: string;
+  completed_at_iso: string;
+  status: string;
+  source_type: string;
+  source_fingerprint: string;
+  entities: OperationalEntity[];
+  relationships: Relationship[];
+  observations: Array<Record<string, unknown>>;
+  issues: DiscoveryIssue[];
+  permission_gaps: Array<Record<string, unknown>>;
+  raw_resource_count: number;
+  collection_summary: Record<string, unknown>;
+  raw_artifact_ids: string[];
+  metadata: Record<string, unknown>;
+  assessments: OperationalProfileAssessment[];
+  artifacts: ArtifactSummary[];
+  topology?: TopologyGraph;
+  diff_from_previous?: SnapshotDiff | null;
+};
+
+export type TopologyGraph = {
+  graph_id: string;
+  environment_id: string;
+  snapshot_id: string;
+  generated_at_iso: string;
+  entities: OperationalEntity[];
+  relationships: Array<Relationship & {
+    confidence?: number;
+    provenance?: string;
+    contract?: Record<string, unknown>;
+  }>;
+  layers: Record<string, string[]>;
+  statistics: Record<string, unknown>;
+  warnings: string[];
+};
+
+export type SnapshotDiff = {
+  diff_id: string;
+  environment_id: string;
+  before_snapshot_id: string;
+  after_snapshot_id: string;
+  created_at_iso: string;
+  entity_changes: Array<{
+    entity_id: string;
+    change_type: "added" | "removed" | "changed";
+    before_hash?: string | null;
+    after_hash?: string | null;
+    field_changes: Array<{ path: string; before: unknown; after: unknown }>;
+  }>;
+  relationship_changes: Array<{
+    relationship_id: string;
+    change_type: "added" | "removed" | "changed";
+  }>;
+  summary: Record<string, number>;
 };

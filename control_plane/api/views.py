@@ -1,28 +1,42 @@
 from __future__ import annotations
 
+from typing import Any
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
+from pydantic import ValidationError
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from kubeops_core import __version__ as core_version
-from kubeops_core.artifacts import build_run_artifacts
+from kubeops_core.artifacts import build_run_artifacts, build_snapshot_artifacts
+from kubeops_core.discovery import diff_snapshots, export_discovery_fixture
+from kubeops_core.health import HealthAssessmentEngine
 from kubeops_core.models import (
+    AccessMethodDefinition,
+    AccessValidationResult,
     ActionInstance,
     ActionTypeDefinition,
+    CompiledOperationalProfile,
     DiagnosisCertificate,
+    DiscoveryBundle,
+    EnvironmentDefinition,
+    EnvironmentSnapshot,
     EvidenceIntent,
     ExecutionPolicy,
     Hypothesis,
     InvariantDefinition,
     Observation,
     ObservationProfile,
+    OperationalArtifact,
     OperationalEntity,
     OperationalObjective,
     OperationalProfile,
+    OperationalProfileAssessment,
+    OperationalProfileSpec,
     PolicyDecision,
     ProbeIntent,
     RecoveryCertificate,
@@ -33,14 +47,58 @@ from kubeops_core.models import (
     ScenarioFamily,
     ScenarioInstance,
     SimulationRun,
+    SnapshotDiff,
     Symptom,
+    TopologyGraph,
     VerificationCondition,
     VerificationResult,
 )
 from kubeops_core.scenarios import ScenarioCompileError, ScenarioComposer
+from kubeops_core.topology import TopologyCompiler
 
-from .models import ArtifactRecord, OperationEventRecord, ScenarioRunRecord
-from .services import artifact_store, registry_catalog, scenario_compiler, scenario_registry, simulation_engine
+from .models import (
+    AccessValidationRecord,
+    ArtifactRecord,
+    EnvironmentRecord,
+    EnvironmentSnapshotRecord,
+    OperationEventRecord,
+    OperationalProfileRecord,
+    ProfileAssessmentRecord,
+    ScenarioRunRecord,
+    SnapshotEntityRecord,
+    SnapshotRelationshipRecord,
+)
+from .services import (
+    artifact_store,
+    environment_intelligence,
+    profile_registry,
+    registry_catalog,
+    scenario_compiler,
+    scenario_registry,
+    simulation_engine,
+)
+
+
+def _dt(value: str):
+    parsed = parse_datetime(value)
+    if parsed is None:
+        raise ValueError(f"invalid ISO datetime {value!r}")
+    return parsed
+
+
+def _validation_error(exc: ValidationError) -> Response:
+    return Response(
+        {"errors": [f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']}" for item in exc.errors()]},
+        status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    )
+
+
+def _environment(record: EnvironmentRecord) -> EnvironmentDefinition:
+    return EnvironmentDefinition.model_validate(record.payload)
+
+
+def _snapshot(record: EnvironmentSnapshotRecord) -> EnvironmentSnapshot:
+    return EnvironmentSnapshot.model_validate(record.payload)
 
 
 def _persist_run(scenario: ScenarioInstance, run: SimulationRun) -> list[dict[str, str]]:
@@ -54,7 +112,7 @@ def _persist_run(scenario: ScenarioInstance, run: SimulationRun) -> list[dict[st
             status=run.status,
             scenario_payload=scenario.model_dump(mode="json"),
             run_payload=run.model_dump(mode="json"),
-            completed_at=parse_datetime(run.completed_at_iso) if run.completed_at_iso else None,
+            completed_at=_dt(run.completed_at_iso) if run.completed_at_iso else None,
         )
         OperationEventRecord.objects.bulk_create(
             [
@@ -73,6 +131,8 @@ def _persist_run(scenario: ScenarioInstance, run: SimulationRun) -> list[dict[st
                 ArtifactRecord(
                     artifact_id=artifact.artifact_id,
                     run=run_record,
+                    scope_type="simulation_run",
+                    scope_id=run.run_id,
                     artifact_type=artifact.artifact_type,
                     content_hash=artifact.payload_hash,
                     media_type=artifact.media_type,
@@ -83,37 +143,201 @@ def _persist_run(scenario: ScenarioInstance, run: SimulationRun) -> list[dict[st
             ]
         )
     return [
-        {
-            "artifact_id": artifact.artifact_id,
-            "artifact_type": artifact.artifact_type,
-            "content_hash": artifact.payload_hash,
-        }
+        {"artifact_id": artifact.artifact_id, "artifact_type": artifact.artifact_type, "content_hash": artifact.payload_hash}
         for artifact in artifacts
     ]
 
 
+def _persist_environment(environment: EnvironmentDefinition, *, update: bool = False) -> EnvironmentRecord:
+    defaults = {
+        "name": environment.name,
+        "environment_class": environment.environment_class,
+        "provider": environment.provider,
+        "cluster_provider": environment.cluster_provider,
+        "host_provider": environment.host_provider,
+        "criticality": environment.criticality,
+        "fingerprint": environment.content_hash,
+        "payload": environment.model_dump(mode="json"),
+        "active": True,
+    }
+    if update:
+        record, _ = EnvironmentRecord.objects.update_or_create(environment_id=environment.environment_id, defaults=defaults)
+        return record
+    return EnvironmentRecord.objects.create(environment_id=environment.environment_id, **defaults)
+
+
+def _persist_validation(record: EnvironmentRecord, result: AccessValidationResult) -> AccessValidationRecord:
+    return AccessValidationRecord.objects.create(
+        validation_id=result.validation_id,
+        environment=record,
+        access_method_id=result.access_method_id,
+        status=result.status,
+        target_fingerprint=result.target_fingerprint,
+        payload=result.model_dump(mode="json"),
+        checked_at=_dt(result.checked_at_iso),
+    )
+
+
+def _persist_snapshot(
+    environment_record: EnvironmentRecord,
+    bundle: DiscoveryBundle,
+    snapshot: EnvironmentSnapshot,
+    topology: TopologyGraph,
+    assessments: list[OperationalProfileAssessment],
+    snapshot_diff: SnapshotDiff | None,
+) -> tuple[EnvironmentSnapshotRecord, list[dict[str, str]]]:
+    artifacts = build_snapshot_artifacts(bundle, snapshot, topology, assessments, snapshot_diff)
+    paths = {artifact.artifact_id: artifact_store().put(artifact) for artifact in artifacts}
+    with transaction.atomic():
+        snapshot_record = EnvironmentSnapshotRecord.objects.create(
+            snapshot_id=snapshot.snapshot_id,
+            environment=environment_record,
+            status=snapshot.status,
+            source_type=snapshot.source_type,
+            source_fingerprint=snapshot.source_fingerprint,
+            captured_at=_dt(snapshot.captured_at_iso),
+            started_at=_dt(snapshot.started_at_iso),
+            completed_at=_dt(snapshot.completed_at_iso),
+            content_hash=snapshot.content_hash,
+            payload=snapshot.model_dump(mode="json"),
+            summary=snapshot.collection_summary,
+        )
+        SnapshotEntityRecord.objects.bulk_create(
+            [
+                SnapshotEntityRecord(
+                    snapshot=snapshot_record,
+                    entity_id=entity.entity_id,
+                    entity_type=entity.entity_type,
+                    name=entity.name,
+                    plane=entity.plane,
+                    namespace=entity.namespace,
+                    provider=entity.provider,
+                    labels=entity.labels,
+                    desired_state=entity.desired_state,
+                    observed_state=entity.observed_state,
+                    content_hash=entity.content_hash,
+                    payload=entity.model_dump(mode="json"),
+                )
+                for entity in snapshot.entities
+            ]
+        )
+        SnapshotRelationshipRecord.objects.bulk_create(
+            [
+                SnapshotRelationshipRecord(
+                    snapshot=snapshot_record,
+                    relationship_id=relationship.relationship_id,
+                    source_id=relationship.source_id,
+                    target_id=relationship.target_id,
+                    relationship_type=relationship.relationship_type,
+                    confidence=relationship.confidence,
+                    provenance=relationship.provenance,
+                    content_hash=relationship.content_hash,
+                    payload=relationship.model_dump(mode="json"),
+                )
+                for relationship in snapshot.relationships
+            ]
+        )
+        ProfileAssessmentRecord.objects.bulk_create(
+            [
+                ProfileAssessmentRecord(
+                    assessment_id=assessment.assessment_id,
+                    snapshot=snapshot_record,
+                    profile_id=assessment.profile_id,
+                    profile_version=assessment.profile_version,
+                    status=assessment.status,
+                    payload=assessment.model_dump(mode="json"),
+                    evaluated_at=_dt(assessment.evaluated_at_iso),
+                )
+                for assessment in assessments
+            ]
+        )
+        ArtifactRecord.objects.bulk_create(
+            [
+                ArtifactRecord(
+                    artifact_id=artifact.artifact_id,
+                    scope_type=artifact.scope_type,
+                    scope_id=artifact.scope_id,
+                    artifact_type=artifact.artifact_type,
+                    content_hash=artifact.payload_hash,
+                    media_type=artifact.media_type,
+                    storage_path=str(paths[artifact.artifact_id]),
+                    derived_from=artifact.derived_from,
+                    metadata=artifact.metadata,
+                )
+                for artifact in artifacts
+            ]
+        )
+    return snapshot_record, [
+        {"artifact_id": artifact.artifact_id, "artifact_type": artifact.artifact_type, "content_hash": artifact.payload_hash}
+        for artifact in artifacts
+    ]
+
+
+def _environment_summary(record: EnvironmentRecord) -> dict[str, Any]:
+    latest_snapshot = record.snapshots.first()
+    latest_validation = record.access_validations.first()
+    assessments = list(latest_snapshot.assessments.all()) if latest_snapshot else []
+    return {
+        "environment_id": record.environment_id,
+        "name": record.name,
+        "environment_class": record.environment_class,
+        "provider": record.provider,
+        "cluster_provider": record.cluster_provider,
+        "host_provider": record.host_provider,
+        "criticality": record.criticality,
+        "fingerprint": record.fingerprint,
+        "active": record.active,
+        "updated_at": record.updated_at,
+        "latest_validation": latest_validation.payload if latest_validation else None,
+        "latest_snapshot": _snapshot_summary(latest_snapshot) if latest_snapshot else None,
+        "latest_health": [item.payload for item in assessments],
+    }
+
+
+def _snapshot_summary(record: EnvironmentSnapshotRecord) -> dict[str, Any]:
+    return {
+        "snapshot_id": record.snapshot_id,
+        "environment_id": record.environment.environment_id,
+        "status": record.status,
+        "source_type": record.source_type,
+        "source_fingerprint": record.source_fingerprint,
+        "captured_at_iso": record.captured_at,
+        "content_hash": record.content_hash,
+        "summary": record.summary,
+        "entity_count": record.entities.count(),
+        "relationship_count": record.relationships.count(),
+        "assessment_count": record.assessments.count(),
+    }
+
+
 class SystemStatusView(APIView):
     def get(self, request: Request) -> Response:
-        registry = scenario_registry()
         return Response(
             {
                 "service": "kubeops-control-plane",
-                "release": "0.1.0",
+                "release": "0.2.0",
                 "core_version": core_version,
-                "mode": "simulation",
+                "mode": "read_only_intelligence",
                 "status": "ok",
-                "family_count": len(registry),
+                "family_count": len(scenario_registry()),
+                "profile_count": len(profile_registry()),
+                "environment_count": EnvironmentRecord.objects.filter(active=True).count(),
                 "capabilities": [
                     "canonical_ir",
-                    "family_inheritance",
                     "scenario_compilation",
-                    "scenario_composition",
                     "deterministic_simulation",
-                    "temporal_invariants",
-                    "partial_observation",
+                    "environment_registry",
+                    "read_only_access_validation",
+                    "fixture_replay",
+                    "kubectl_discovery",
+                    "secret_redaction",
+                    "immutable_snapshots",
+                    "snapshot_diff",
+                    "topology_compilation",
+                    "graph_invariants",
+                    "operational_profiles",
+                    "temporal_health",
                     "artifact_persistence",
-                    "forward_compatible_diagnosis_ir",
-                    "forward_compatible_recovery_ir",
                 ],
             }
         )
@@ -155,6 +379,17 @@ class SchemaView(APIView):
             RecoveryCertificate,
             SimulationRun,
             RunArtifact,
+            OperationalArtifact,
+            AccessMethodDefinition,
+            EnvironmentDefinition,
+            AccessValidationResult,
+            DiscoveryBundle,
+            EnvironmentSnapshot,
+            SnapshotDiff,
+            TopologyGraph,
+            OperationalProfileSpec,
+            CompiledOperationalProfile,
+            OperationalProfileAssessment,
         ]
     }
 
@@ -165,16 +400,214 @@ class SchemaView(APIView):
         return Response(model.model_json_schema())
 
 
+class OperationalProfileListView(APIView):
+    def get(self, request: Request) -> Response:
+        payload = []
+        for profile in profile_registry().values():
+            item = profile.model_dump(mode="json")
+            item["content_hash"] = profile.content_hash
+            payload.append(item)
+        return Response(payload)
+
+
+class OperationalProfileDetailView(APIView):
+    def get(self, request: Request, profile_id: str) -> Response:
+        try:
+            profile = profile_registry().get(profile_id)
+        except KeyError:
+            return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        payload = profile.model_dump(mode="json")
+        payload["content_hash"] = profile.content_hash
+        return Response(payload)
+
+
+class EnvironmentListView(APIView):
+    def get(self, request: Request) -> Response:
+        records = EnvironmentRecord.objects.prefetch_related("snapshots__assessments", "access_validations").filter(active=True)
+        return Response([_environment_summary(record) for record in records])
+
+    def post(self, request: Request) -> Response:
+        try:
+            environment = EnvironmentDefinition.model_validate(request.data)
+        except ValidationError as exc:
+            return _validation_error(exc)
+        if EnvironmentRecord.objects.filter(environment_id=environment.environment_id).exists():
+            return Response({"detail": "environment already exists"}, status=status.HTTP_409_CONFLICT)
+        record = _persist_environment(environment)
+        return Response(_environment_summary(record), status=status.HTTP_201_CREATED)
+
+
+class EnvironmentDetailView(APIView):
+    def get(self, request: Request, environment_id: str) -> Response:
+        record = get_object_or_404(EnvironmentRecord, environment_id=environment_id, active=True)
+        payload = _environment(record).model_dump(mode="json")
+        payload["fingerprint"] = record.fingerprint
+        payload["latest_validation"] = record.access_validations.first().payload if record.access_validations.exists() else None
+        payload["snapshots"] = [_snapshot_summary(item) for item in record.snapshots.all()[:50]]
+        return Response(payload)
+
+    def put(self, request: Request, environment_id: str) -> Response:
+        if request.data.get("environment_id", environment_id) != environment_id:
+            return Response({"detail": "environment_id cannot be changed"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        payload = dict(request.data)
+        payload["environment_id"] = environment_id
+        try:
+            environment = EnvironmentDefinition.model_validate(payload)
+        except ValidationError as exc:
+            return _validation_error(exc)
+        record = _persist_environment(environment, update=True)
+        return Response(_environment_summary(record))
+
+    def delete(self, request: Request, environment_id: str) -> Response:
+        record = get_object_or_404(EnvironmentRecord, environment_id=environment_id)
+        record.active = False
+        record.save(update_fields=["active", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EnvironmentAccessValidationView(APIView):
+    def post(self, request: Request, environment_id: str) -> Response:
+        record = get_object_or_404(EnvironmentRecord, environment_id=environment_id, active=True)
+        try:
+            result = environment_intelligence().validate(_environment(record), request.data.get("method_id"))
+        except (OSError, ValueError, TimeoutError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        _persist_validation(record, result)
+        return Response(result.model_dump(mode="json"), status=status.HTTP_201_CREATED)
+
+
+class EnvironmentSnapshotListView(APIView):
+    def get(self, request: Request, environment_id: str) -> Response:
+        record = get_object_or_404(EnvironmentRecord, environment_id=environment_id, active=True)
+        return Response([_snapshot_summary(item) for item in record.snapshots.all()[:100]])
+
+    def post(self, request: Request, environment_id: str) -> Response:
+        record = get_object_or_404(EnvironmentRecord, environment_id=environment_id, active=True)
+        environment = _environment(record)
+        profile_ids = request.data.get("profile_ids") or environment.operational_profile_ids
+        try:
+            profiles = [profile_registry().get(profile_id) for profile_id in profile_ids]
+        except KeyError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        history_records = list(record.snapshots.all()[:20])
+        history = [_snapshot(item) for item in reversed(history_records)]
+        previous = history[-1] if history else None
+        try:
+            result = environment_intelligence().collect(
+                environment,
+                method_id=request.data.get("method_id"),
+                resource_types=request.data.get("resource_types"),
+                profiles=profiles,
+                history=history,
+            )
+        except (OSError, ValueError, TimeoutError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        snapshot_diff = diff_snapshots(previous, result.snapshot) if previous else None
+        snapshot_record, artifacts = _persist_snapshot(
+            record,
+            result.bundle,
+            result.snapshot,
+            result.topology,
+            result.assessments,
+            snapshot_diff,
+        )
+        payload = result.snapshot.model_dump(mode="json")
+        payload["topology"] = result.topology.model_dump(mode="json")
+        payload["assessments"] = [item.model_dump(mode="json") for item in result.assessments]
+        payload["diff_from_previous"] = snapshot_diff.model_dump(mode="json") if snapshot_diff else None
+        payload["artifacts"] = artifacts
+        payload["record"] = _snapshot_summary(snapshot_record)
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class SnapshotDetailView(APIView):
+    def get(self, request: Request, snapshot_id: str) -> Response:
+        record = get_object_or_404(EnvironmentSnapshotRecord.objects.select_related("environment"), snapshot_id=snapshot_id)
+        payload = dict(record.payload)
+        payload["assessments"] = [item.payload for item in record.assessments.all()]
+        payload["artifacts"] = [
+            {
+                "artifact_id": artifact.artifact_id,
+                "artifact_type": artifact.artifact_type,
+                "content_hash": artifact.content_hash,
+                "metadata": artifact.metadata,
+            }
+            for artifact in ArtifactRecord.objects.filter(scope_type="environment_snapshot", scope_id=snapshot_id)
+        ]
+        return Response(payload)
+
+
+class SnapshotTopologyView(APIView):
+    def get(self, request: Request, snapshot_id: str) -> Response:
+        record = get_object_or_404(EnvironmentSnapshotRecord, snapshot_id=snapshot_id)
+        topology = TopologyCompiler().compile_snapshot(_snapshot(record))
+        return Response(topology.model_dump(mode="json"))
+
+
+class SnapshotDiffView(APIView):
+    def get(self, request: Request, snapshot_id: str) -> Response:
+        after_record = get_object_or_404(EnvironmentSnapshotRecord, snapshot_id=snapshot_id)
+        before_id = request.query_params.get("before")
+        if before_id:
+            before_record = get_object_or_404(EnvironmentSnapshotRecord, snapshot_id=before_id, environment=after_record.environment)
+        else:
+            before_record = after_record.environment.snapshots.filter(captured_at__lt=after_record.captured_at).first()
+            if before_record is None:
+                return Response({"detail": "no prior snapshot exists"}, status=status.HTTP_404_NOT_FOUND)
+        result = diff_snapshots(_snapshot(before_record), _snapshot(after_record))
+        return Response(result.model_dump(mode="json"))
+
+
+class SnapshotHealthView(APIView):
+    def get(self, request: Request, snapshot_id: str) -> Response:
+        record = get_object_or_404(EnvironmentSnapshotRecord.objects.select_related("environment"), snapshot_id=snapshot_id)
+        profile_id = request.query_params.get("profile_id")
+        if not profile_id:
+            return Response([item.payload for item in record.assessments.all()])
+        existing = record.assessments.filter(profile_id=profile_id).first()
+        if existing:
+            return Response(existing.payload)
+        try:
+            profile = profile_registry().get(profile_id)
+        except KeyError:
+            return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        history_records = list(record.environment.snapshots.filter(captured_at__lte=record.captured_at).order_by("captured_at"))
+        assessment = HealthAssessmentEngine().assess(profile, _snapshot(record), [_snapshot(item) for item in history_records])
+        ProfileAssessmentRecord.objects.create(
+            assessment_id=assessment.assessment_id,
+            snapshot=record,
+            profile_id=assessment.profile_id,
+            profile_version=assessment.profile_version,
+            status=assessment.status,
+            payload=assessment.model_dump(mode="json"),
+            evaluated_at=_dt(assessment.evaluated_at_iso),
+        )
+        return Response(assessment.model_dump(mode="json"), status=status.HTTP_201_CREATED)
+
+
+class SnapshotFixtureExportView(APIView):
+    def get(self, request: Request, snapshot_id: str) -> Response:
+        record = get_object_or_404(
+            ArtifactRecord,
+            scope_type="environment_snapshot",
+            scope_id=snapshot_id,
+            artifact_type="raw_discovery_bundle",
+        )
+        artifact = artifact_store().get(record.scope_id, record.artifact_id)
+        bundle = DiscoveryBundle.model_validate(artifact.payload)
+        return Response(export_discovery_fixture(bundle, snapshot_id=snapshot_id))
+
+
+# Release 0.1 scenario laboratory endpoints remain stable.
 class ScenarioFamilyListView(APIView):
     def get(self, request: Request) -> Response:
-        registry = scenario_registry()
         payload = []
         compiler = scenario_compiler()
-        for family in registry.values():
+        for family in scenario_registry().values():
             effective = compiler.effective_family(family.family_id)
             item = effective.model_dump(mode="json")
             item["content_hash"] = effective.content_hash
-            item["lineage"] = [node.family_id for node in registry.lineage(family.family_id)]
+            item["lineage"] = [node.family_id for node in scenario_registry().lineage(family.family_id)]
             payload.append(item)
         return Response(payload)
 
@@ -206,8 +639,7 @@ class ScenarioCompileView(APIView):
         except KeyError as exc:
             return Response({"errors": [f"missing field {exc.args[0]}"]}, status=status.HTTP_400_BAD_REQUEST)
         except (ScenarioCompileError, ValueError) as exc:
-            errors = getattr(exc, "errors", [str(exc)])
-            return Response({"errors": errors}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response({"errors": getattr(exc, "errors", [str(exc)])}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         return Response(scenario.model_dump(mode="json"), status=status.HTTP_201_CREATED)
 
 
@@ -226,14 +658,11 @@ class ScenarioRunView(APIView):
         except KeyError as exc:
             return Response({"errors": [f"missing field {exc.args[0]}"]}, status=status.HTTP_400_BAD_REQUEST)
         except (ScenarioCompileError, ValueError) as exc:
-            errors = getattr(exc, "errors", [str(exc)])
-            return Response({"errors": errors}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-
+            return Response({"errors": getattr(exc, "errors", [str(exc)])}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         run = simulation_engine().run(scenario, seed=int(payload.get("seed", 0)))
-        artifact_summaries = _persist_run(scenario, run)
         response = run.model_dump(mode="json")
         response["scenario"] = scenario.model_dump(mode="json")
-        response["artifacts"] = artifact_summaries
+        response["artifacts"] = _persist_run(scenario, run)
         return Response(response, status=status.HTTP_201_CREATED)
 
 
@@ -242,12 +671,8 @@ class CompositionCompileView(APIView):
         try:
             spec = ScenarioComposition.model_validate(request.data)
             scenario = ScenarioComposer(scenario_compiler()).compose(spec)
-        except (ValueError, ScenarioCompileError) as exc:
-            errors = getattr(exc, "errors", None)
-            if callable(errors):
-                errors = [item.get("msg", str(item)) for item in errors()]
-            if not errors:
-                errors = getattr(exc, "errors", [str(exc)])
+        except (ValidationError, ValueError, ScenarioCompileError) as exc:
+            errors = [item.get("msg", str(item)) for item in exc.errors()] if isinstance(exc, ValidationError) else getattr(exc, "errors", [str(exc)])
             return Response({"errors": errors}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         return Response(scenario.model_dump(mode="json"), status=status.HTTP_201_CREATED)
 
@@ -257,12 +682,8 @@ class CompositionRunView(APIView):
         try:
             spec = ScenarioComposition.model_validate(request.data)
             scenario = ScenarioComposer(scenario_compiler()).compose(spec)
-        except (ValueError, ScenarioCompileError) as exc:
-            errors = getattr(exc, "errors", None)
-            if callable(errors):
-                errors = [item.get("msg", str(item)) for item in errors()]
-            if not errors:
-                errors = getattr(exc, "errors", [str(exc)])
+        except (ValidationError, ValueError, ScenarioCompileError) as exc:
+            errors = [item.get("msg", str(item)) for item in exc.errors()] if isinstance(exc, ValidationError) else getattr(exc, "errors", [str(exc)])
             return Response({"errors": errors}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         run = simulation_engine().run(scenario, seed=int(request.data.get("seed", 0)))
         response = run.model_dump(mode="json")
@@ -275,17 +696,26 @@ class ArtifactListView(APIView):
     def get(self, request: Request) -> Response:
         queryset = ArtifactRecord.objects.select_related("run").all()
         run_id = request.query_params.get("run_id")
+        scope_id = request.query_params.get("scope_id")
+        scope_type = request.query_params.get("scope_type")
         if run_id:
             queryset = queryset.filter(run__run_id=run_id)
+        if scope_id:
+            queryset = queryset.filter(scope_id=scope_id)
+        if scope_type:
+            queryset = queryset.filter(scope_type=scope_type)
         return Response(
             [
                 {
                     "artifact_id": artifact.artifact_id,
-                    "run_id": artifact.run.run_id,
+                    "run_id": artifact.run.run_id if artifact.run else None,
+                    "scope_type": artifact.scope_type,
+                    "scope_id": artifact.scope_id,
                     "artifact_type": artifact.artifact_type,
                     "content_hash": artifact.content_hash,
                     "media_type": artifact.media_type,
                     "derived_from": artifact.derived_from,
+                    "metadata": artifact.metadata,
                     "created_at": artifact.created_at,
                 }
                 for artifact in queryset[:500]
@@ -295,10 +725,9 @@ class ArtifactListView(APIView):
 
 class ArtifactDetailView(APIView):
     def get(self, request: Request, artifact_id: str) -> Response:
-        record = get_object_or_404(
-            ArtifactRecord.objects.select_related("run"), artifact_id=artifact_id
-        )
-        artifact = artifact_store().get(record.run.run_id, record.artifact_id)
+        record = get_object_or_404(ArtifactRecord.objects.select_related("run"), artifact_id=artifact_id)
+        scope_id = record.scope_id or (record.run.run_id if record.run else "")
+        artifact = artifact_store().get(scope_id, record.artifact_id)
         payload = artifact.model_dump(mode="json")
         payload["content_hash"] = payload.pop("payload_hash")
         return Response(payload)
@@ -306,7 +735,6 @@ class ArtifactDetailView(APIView):
 
 class ScenarioRunListView(APIView):
     def get(self, request: Request) -> Response:
-        records = ScenarioRunRecord.objects.all()[:100]
         return Response(
             [
                 {
@@ -318,7 +746,7 @@ class ScenarioRunListView(APIView):
                     "completed_at": record.completed_at,
                     "final_summary": record.run_payload.get("final_summary", {}),
                 }
-                for record in records
+                for record in ScenarioRunRecord.objects.all()[:100]
             ]
         )
 

@@ -7,4 +7,7 @@ COPY control_plane /workspace/control_plane
 COPY requirements-runtime.txt /workspace/requirements-runtime.txt
 RUN pip install --no-cache-dir -r requirements-runtime.txt
 COPY scenarios /workspace/scenarios
+COPY profiles /workspace/profiles
+COPY lab/fixtures /workspace/lab/fixtures
+COPY environments /workspace/environments
 EXPOSE 8000

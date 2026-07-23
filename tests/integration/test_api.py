@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
 import pytest
 from django.test import Client, override_settings
 
@@ -8,9 +13,10 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
-def configure_paths(repo_root, tmp_path):
+def configure_paths(repo_root: Path, tmp_path: Path):
     with override_settings(
         KUBEOPS_SCENARIO_DIR=repo_root / "scenarios",
+        KUBEOPS_PROFILE_DIR=repo_root / "profiles",
         KUBEOPS_ARTIFACT_DIR=tmp_path / "artifacts",
     ):
         clear_service_caches()
@@ -18,11 +24,22 @@ def configure_paths(repo_root, tmp_path):
         clear_service_caches()
 
 
-def test_status_and_family_endpoints(db) -> None:
+def test_status_profiles_and_family_endpoints(db) -> None:
     client = Client()
     status_response = client.get("/api/v1/system/status")
     assert status_response.status_code == 200
-    assert status_response.json()["mode"] == "simulation"
+    status_payload = status_response.json()
+    assert status_payload["mode"] == "read_only_intelligence"
+    assert status_payload["release"] == "0.2.0"
+    assert status_payload["profile_count"] >= 2
+    assert "immutable_snapshots" in status_payload["capabilities"]
+
+    profiles_response = client.get("/api/v1/operational-profiles")
+    assert profiles_response.status_code == 200
+    assert {item["profile_id"] for item in profiles_response.json()} >= {
+        "cluster-observable.v1",
+        "local-development-usable.v1",
+    }
 
     families_response = client.get("/api/v1/scenario-families")
     assert families_response.status_code == 200
@@ -36,6 +53,84 @@ def test_status_and_family_endpoints(db) -> None:
         "provider_id",
         "failure_layer",
     }
+
+
+def test_fixture_environment_snapshot_health_diff_and_export(db, repo_root: Path) -> None:
+    client = Client()
+    fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
+    environment = {
+        "environment_id": "integration-kind",
+        "name": "Integration Kind",
+        "environment_class": "development",
+        "provider": "fixture",
+        "cluster_provider": "kind",
+        "access_methods": [
+            {
+                "method_id": "fixture",
+                "method_type": "fixture",
+                "title": "Recorded fixture",
+                "fixture_path": str(fixture_path),
+            }
+        ],
+        "default_access_method_id": "fixture",
+        "operational_profile_ids": [
+            "cluster-observable.v1",
+            "local-development-usable.v1",
+        ],
+    }
+    create_response = client.post("/api/v1/environments", data=environment, content_type="application/json")
+    assert create_response.status_code == 201
+
+    validation_response = client.post(
+        "/api/v1/environments/integration-kind/validate",
+        data={},
+        content_type="application/json",
+    )
+    assert validation_response.status_code == 201
+    assert validation_response.json()["status"] == "healthy"
+
+    first_response = client.post(
+        "/api/v1/environments/integration-kind/snapshots",
+        data={},
+        content_type="application/json",
+    )
+    assert first_response.status_code == 201
+    first = first_response.json()
+    assert first["raw_resource_count"] >= 20
+    assert len(first["topology"]["relationships"]) >= 25
+    assessment_by_id = {item["profile_id"]: item for item in first["assessments"]}
+    assert assessment_by_id["cluster-observable.v1"]["status"] == "healthy"
+    assert assessment_by_id["local-development-usable.v1"]["status"] == "unhealthy"
+
+    snapshot_id = first["snapshot_id"]
+    export_response = client.get(f"/api/v1/snapshots/{snapshot_id}/export")
+    assert export_response.status_code == 200
+    exported = export_response.json()
+    assert exported["api_version"] == "kubeops.io/discovery-fixture/v1"
+    assert isinstance(exported["resources"], dict)
+    serialized = json.dumps(exported)
+    assert "super-secret-password" not in serialized
+    assert "password" in serialized
+
+    second_response = client.post(
+        "/api/v1/environments/integration-kind/snapshots",
+        data={},
+        content_type="application/json",
+    )
+    assert second_response.status_code == 201
+    second = second_response.json()
+    assert second["diff_from_previous"]["summary"] == {
+        "entities_added": 0,
+        "entities_removed": 0,
+        "entities_changed": 0,
+        "relationships_added": 0,
+        "relationships_removed": 0,
+        "relationships_changed": 0,
+    }
+
+    diff_response = client.get(f"/api/v1/snapshots/{second['snapshot_id']}/diff?before={snapshot_id}")
+    assert diff_response.status_code == 200
+    assert not diff_response.json()["entity_changes"]
 
 
 def test_compile_and_run_persist_artifacts(db) -> None:

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kubeops-cli"
-version = "0.1.0"
-description = "CLI for KubeOps Release 0.1"
+version = "0.2.0"
+description = "CLI for KubeOps Release 0.2"
 requires-python = ">=3.11"
 dependencies = [
-  "kubeops-core>=0.1.0",
+  "kubeops-core>=0.2.0",
   "typer>=0.15,<1",
   "rich>=13.9,<15",
 ]

@@ -9,5 +9,6 @@ pip install -r requirements-dev.txt
 export PYTHONPATH="$PWD/packages/kubeops_core:$PWD/packages/kubeops_cli:$PWD/control_plane${PYTHONPATH:+:$PYTHONPATH}"
 python control_plane/manage.py migrate
 python control_plane/manage.py seed_release_01
-printf '\nKubeOps Release 0.1 is bootstrapped.\n'
+python control_plane/manage.py seed_release_02
+printf '\nKubeOps Release 0.2 is bootstrapped.\n'
 printf 'Run ./scripts/dev.sh to start API and UI.\n'

@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+import pytest
+
+hypothesis = pytest.importorskip("hypothesis")
 from hypothesis import given, strategies as st
 
 from kubeops_core.simulator import SimulationEngine
