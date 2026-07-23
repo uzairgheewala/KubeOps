@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kubeops-core"
+version = "0.1.0"
+description = "Canonical operational IR, scenario compiler, and deterministic simulator for KubeOps"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.10,<3",
+  "PyYAML>=6.0,<7",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kubeops_core*"]

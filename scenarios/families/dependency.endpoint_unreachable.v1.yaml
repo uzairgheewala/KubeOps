@@ -1,0 +1,82 @@
+schema_version: kubeops.io/v1
+family_id: dependency.endpoint_unreachable.v1
+version: "1.0.0"
+title: "${provider_name} becomes unreachable from ${consumer_name}"
+description: >-
+  A required endpoint exists but the communication path cannot be established.
+parent_family_id: dependency.failure.v1
+parameters:
+  - name: failure_layer
+    title: Failed reachability layer
+    parameter_type: enum
+    options: [name_resolution, route, transport, tls]
+    default: transport
+constraints: []
+signature:
+  invariant_families: [reachability, readiness]
+  disturbance_mechanisms: [partition]
+  temporal_forms: [persistent]
+  topology_patterns: [linear_dependency, communication_path]
+  observation_profiles: [full, consumer_only, delayed_provider, contradictory]
+  recovery_strategy_classes: [repair_route, restart_endpoint, restore_name_resolution]
+  coverage_labels: [dependency, reachability, layered_transport]
+blueprint:
+  entities:
+    - entity_id: "${provider_id}"
+      observed_state:
+        reachable: true
+        failed_layer: null
+  invariants:
+    - invariant_id: provider.reachable
+      title: Provider endpoint is reachable
+      family: reachability
+      subject_id: "${provider_id}"
+      predicate:
+        predicate_type: field_equals
+        entity_id: "${provider_id}"
+        path: observed_state.reachable
+        value: true
+      severity: critical
+      description: The required communication path must be established.
+      affected_objectives: [environment_usable]
+  transition_rules:
+    - rule_id: propagate-unreachability
+      title: Unreachable provider removes consumer serviceability
+      conditions:
+        - predicate_type: field_equals
+          entity_id: "${provider_id}"
+          path: observed_state.reachable
+          value: false
+      effects:
+        - mutation_type: set_state
+          entity_id: "${consumer_id}"
+          path: observed_state.serviceable
+          value: false
+      delay_seconds: 1
+      fire_once: true
+  observation_profiles: []
+disturbances:
+  - disturbance_id: endpoint-unreachable
+    title: Communication path fails at ${failure_layer}
+    mechanism: partition
+    temporal_form: persistent
+    mutations:
+      - mutation_id: mark-failure-layer
+        at_seconds: 2
+        description: The path fails at the selected layer.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${provider_id}"
+          path: observed_state.failed_layer
+          value: "${failure_layer}"
+      - mutation_id: endpoint-becomes-unreachable
+        at_seconds: 2
+        description: The provider endpoint becomes unreachable.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${provider_id}"
+          path: observed_state.reachable
+          value: false
+default_disturbance_id: endpoint-unreachable
+default_observation_profile_id: full
+tags: [dependency, reachability, basis]

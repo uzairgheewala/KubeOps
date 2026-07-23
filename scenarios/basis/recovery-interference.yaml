@@ -1,0 +1,20 @@
+schema_version: kubeops.io/v1
+composition_id: recovery-interference
+title: Recovery sequence exposes controller non-convergence
+operator: recovery_interference
+components:
+  - schema_version: kubeops.io/v1
+    alias: recovery
+    family_id: entity.required_absent.v1
+    bindings: {}
+    duration_hint_seconds: 4
+  - schema_version: kubeops.io/v1
+    alias: secondary
+    family_id: controller.convergence_failure.v1
+    bindings: {}
+    duration_hint_seconds: 6
+bridge_relationships: []
+masked_aliases: []
+gap_seconds: 1
+metadata:
+  coverage: [recovery_interference, secondary_degradation]

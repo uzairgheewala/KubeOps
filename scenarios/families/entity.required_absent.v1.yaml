@@ -1,0 +1,135 @@
+schema_version: kubeops.io/v1
+family_id: entity.required_absent.v1
+version: "1.0.0"
+title: "Required ${required_name} is absent"
+description: >-
+  A consumer requires an entity that is logically absent from its operational
+  scope. Absence is represented explicitly so observed versus unknown remains
+  distinguishable.
+parent_family_id: null
+parameters:
+  - name: consumer_id
+    title: Consumer ID
+    parameter_type: string
+    default: consumer
+  - name: consumer_name
+    title: Consumer name
+    parameter_type: string
+    default: Workload
+  - name: required_id
+    title: Required entity ID
+    parameter_type: string
+    default: required-resource
+  - name: required_name
+    title: Required entity name
+    parameter_type: string
+    default: Secret
+  - name: required_type
+    title: Required entity type
+    parameter_type: enum
+    options: [secret, config_map, service, crd, backup, operational_process]
+    default: secret
+constraints:
+  - constraint_type: not_equal
+    parameters: [consumer_id, required_id]
+    message: Consumer and required entity IDs must be distinct.
+signature:
+  invariant_families: [existence, readiness]
+  disturbance_mechanisms: [omission]
+  temporal_forms: [persistent]
+  topology_patterns: [required_reference]
+  observation_profiles: [full, consumer_only]
+  recovery_strategy_classes: [create_entity, restore_entity, correct_reference]
+  coverage_labels: [existence, basis]
+blueprint:
+  entities:
+    - entity_id: "${consumer_id}"
+      entity_type: workload
+      name: "${consumer_name}"
+      plane: workload
+      desired_state:
+        serviceable: true
+      observed_state:
+        exists: true
+        serviceable: true
+    - entity_id: "${required_id}"
+      entity_type: "${required_type}"
+      name: "${required_name}"
+      plane: platform
+      desired_state:
+        exists: true
+      observed_state:
+        exists: true
+  relationships:
+    - relationship_id: "${consumer_id}->${required_id}"
+      source_id: "${consumer_id}"
+      target_id: "${required_id}"
+      relationship_type: references
+      contract:
+        target_state: exists
+        required_value: true
+      confidence: 1.0
+      provenance: scenario_family
+  invariants:
+    - invariant_id: required.exists
+      title: Required entity exists
+      family: existence
+      subject_id: "${required_id}"
+      predicate:
+        predicate_type: field_equals
+        entity_id: "${required_id}"
+        path: observed_state.exists
+        value: true
+      severity: critical
+      affected_objectives: [environment_usable]
+    - invariant_id: consumer.serviceable
+      title: Consumer remains serviceable
+      family: readiness
+      subject_id: "${consumer_id}"
+      predicate:
+        predicate_type: field_equals
+        entity_id: "${consumer_id}"
+        path: observed_state.serviceable
+        value: true
+      severity: critical
+      affected_objectives: [environment_usable]
+  transition_rules:
+    - rule_id: propagate-required-absence
+      title: Missing required entity blocks consumer
+      conditions:
+        - predicate_type: field_equals
+          entity_id: "${required_id}"
+          path: observed_state.exists
+          value: false
+      effects:
+        - mutation_type: set_state
+          entity_id: "${consumer_id}"
+          path: observed_state.serviceable
+          value: false
+      delay_seconds: 1
+      fire_once: true
+  observation_profiles:
+    - profile_id: full
+      title: Full authoritative observation
+      profile_kind: full
+    - profile_id: consumer_only
+      title: Required entity evidence is hidden
+      profile_kind: partial
+      hidden_entity_ids: ["${required_id}"]
+disturbances:
+  - disturbance_id: required-entity-omitted
+    title: Required entity becomes absent
+    mechanism: omission
+    temporal_form: persistent
+    mutations:
+      - mutation_id: entity-marked-absent
+        at_seconds: 2
+        description: Required entity is absent from the operational scope.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${required_id}"
+          path: observed_state.exists
+          value: false
+default_disturbance_id: required-entity-omitted
+default_observation_profile_id: full
+tags: [existence, basis]

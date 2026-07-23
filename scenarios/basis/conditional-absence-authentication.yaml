@@ -1,0 +1,26 @@
+schema_version: kubeops.io/v1
+composition_id: conditional-absence-authentication
+title: Authentication failure activated by required entity absence
+operator: conditional
+components:
+  - schema_version: kubeops.io/v1
+    alias: absence
+    family_id: entity.required_absent.v1
+    bindings: {}
+    duration_hint_seconds: 6
+  - schema_version: kubeops.io/v1
+    alias: authentication
+    family_id: dependency.authentication_failure.v1
+    bindings: {}
+    duration_hint_seconds: 8
+    activation_predicate:
+      schema_version: kubeops.io/v1
+      predicate_type: field_equals
+      entity_id: absence::required-resource
+      path: observed_state.exists
+      value: false
+bridge_relationships: []
+masked_aliases: []
+gap_seconds: 1
+metadata:
+  coverage: [conditional, cross_component_activation]

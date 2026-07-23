@@ -1,0 +1,20 @@
+schema_version: kubeops.io/v1
+composition_id: masking-hidden-absence
+title: Hidden required entity absence beside visible endpoint failure
+operator: masking
+components:
+  - schema_version: kubeops.io/v1
+    alias: hidden
+    family_id: entity.required_absent.v1
+    bindings: {}
+    duration_hint_seconds: 6
+  - schema_version: kubeops.io/v1
+    alias: visible
+    family_id: dependency.endpoint_unreachable.v1
+    bindings: {}
+    duration_hint_seconds: 6
+bridge_relationships: []
+masked_aliases: [hidden]
+gap_seconds: 1
+metadata:
+  coverage: [masking, partial_observation]

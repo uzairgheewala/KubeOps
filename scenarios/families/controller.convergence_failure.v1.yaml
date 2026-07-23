@@ -1,0 +1,149 @@
+schema_version: kubeops.io/v1
+family_id: controller.convergence_failure.v1
+version: "1.0.0"
+title: "${controller_name} cannot converge ${resource_name}"
+description: >-
+  A controller remains present but stops making bounded progress toward the
+  desired resource state.
+parent_family_id: null
+parameters:
+  - name: controller_id
+    title: Controller ID
+    parameter_type: string
+    default: controller
+  - name: controller_name
+    title: Controller name
+    parameter_type: string
+    default: Deployment controller
+  - name: resource_id
+    title: Resource ID
+    parameter_type: string
+    default: resource
+  - name: resource_name
+    title: Resource name
+    parameter_type: string
+    default: Deployment
+  - name: stall_reason
+    title: Stall reason
+    parameter_type: enum
+    options: [dependency_missing, placement_impossible, admission_denied, internal_error]
+    default: internal_error
+constraints:
+  - constraint_type: not_equal
+    parameters: [controller_id, resource_id]
+    message: Controller and controlled resource IDs must be distinct.
+signature:
+  invariant_families: [lifecycle_progress, readiness]
+  disturbance_mechanisms: [hang]
+  temporal_forms: [persistent]
+  topology_patterns: [controller_resource]
+  observation_profiles: [full, resource_only, delayed_controller]
+  recovery_strategy_classes: [repair_dependency, restart_controller, resynchronize]
+  coverage_labels: [controller, progress, basis]
+blueprint:
+  entities:
+    - entity_id: "${controller_id}"
+      entity_type: controller
+      name: "${controller_name}"
+      plane: control_plane
+      observed_state:
+        exists: true
+        progressing: true
+        reason: null
+    - entity_id: "${resource_id}"
+      entity_type: controlled_resource
+      name: "${resource_name}"
+      plane: workload
+      desired_state:
+        converged: true
+      observed_state:
+        exists: true
+        converged: true
+        ready: true
+  relationships:
+    - relationship_id: "${controller_id}->${resource_id}"
+      source_id: "${controller_id}"
+      target_id: "${resource_id}"
+      relationship_type: reconciles
+      confidence: 1.0
+      provenance: scenario_family
+  invariants:
+    - invariant_id: controller.progressing
+      title: Controller makes progress
+      family: lifecycle_progress
+      subject_id: "${controller_id}"
+      predicate:
+        predicate_type: field_equals
+        entity_id: "${controller_id}"
+        path: observed_state.progressing
+        value: true
+      severity: error
+      affected_objectives: [environment_usable]
+    - invariant_id: resource.converged
+      title: Resource converges
+      family: lifecycle_progress
+      subject_id: "${resource_id}"
+      predicate:
+        predicate_type: field_equals
+        entity_id: "${resource_id}"
+        path: observed_state.converged
+        value: true
+      severity: critical
+      affected_objectives: [environment_usable]
+  transition_rules:
+    - rule_id: propagate-controller-stall
+      title: Stalled controller leaves resource unconverged
+      conditions:
+        - predicate_type: field_equals
+          entity_id: "${controller_id}"
+          path: observed_state.progressing
+          value: false
+      effects:
+        - mutation_type: set_state
+          entity_id: "${resource_id}"
+          path: observed_state.converged
+          value: false
+        - mutation_type: set_state
+          entity_id: "${resource_id}"
+          path: observed_state.ready
+          value: false
+      delay_seconds: 2
+      fire_once: true
+  observation_profiles:
+    - profile_id: full
+      title: Full authoritative observation
+      profile_kind: full
+    - profile_id: resource_only
+      title: Only the unconverged resource is visible
+      profile_kind: partial
+      hidden_entity_ids: ["${controller_id}"]
+    - profile_id: delayed_controller
+      title: Controller evidence is delayed
+      profile_kind: delayed
+      lag_seconds:
+        "${controller_id}": 3
+disturbances:
+  - disturbance_id: controller-stalls
+    title: Controller stalls because of ${stall_reason}
+    mechanism: hang
+    temporal_form: persistent
+    mutations:
+      - mutation_id: record-stall-reason
+        at_seconds: 2
+        description: Controller records the selected stall reason.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${controller_id}"
+          path: observed_state.reason
+          value: "${stall_reason}"
+      - mutation_id: controller-stops-progress
+        at_seconds: 2
+        description: Controller stops making progress.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${controller_id}"
+          path: observed_state.progressing
+          value: false
+default_disturbance_id: controller-stalls
+default_observation_profile_id: full
+tags: [controller, convergence, basis]

@@ -1,0 +1,21 @@
+schema_version: kubeops.io/v1
+composition_id: concurrent-network-controller
+title: Concurrent endpoint and controller failures
+operator: concurrent
+components:
+  - alias: network
+    family_id: dependency.endpoint_unreachable.v1
+    bindings:
+      consumer_name: Builder
+      provider_name: Kubernetes API
+      failure_layer: tls
+  - alias: reconciliation
+    family_id: controller.convergence_failure.v1
+    bindings:
+      controller_name: Deployment controller
+      resource_name: Builder Deployment
+      stall_reason: dependency_missing
+bridge_relationships: []
+gap_seconds: 1
+metadata:
+  purpose: Demonstrate independent concurrent causes in one world.

@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: kubeops
+      POSTGRES_USER: kubeops
+      POSTGRES_PASSWORD: kubeops
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kubeops -d kubeops"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - kubeops-postgres:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: control_plane/Dockerfile
+    environment:
+      DJANGO_SECRET_KEY: development-only-change-me
+      DJANGO_DEBUG: "1"
+      DATABASE_URL: postgresql://kubeops:kubeops@postgres:5432/kubeops
+      KUBEOPS_SCENARIO_DIR: /workspace/scenarios
+      KUBEOPS_ARTIFACT_DIR: /workspace/artifacts
+    command: >-
+      sh -c "python control_plane/manage.py migrate &&
+             python control_plane/manage.py seed_release_01 &&
+             python control_plane/manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./artifacts:/workspace/artifacts
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  kubeops-postgres:

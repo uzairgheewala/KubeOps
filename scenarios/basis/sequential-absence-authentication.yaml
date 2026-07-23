@@ -1,0 +1,20 @@
+schema_version: kubeops.io/v1
+composition_id: sequential-absence-authentication
+title: Required entity absence followed by authentication failure
+operator: sequential
+components:
+  - schema_version: kubeops.io/v1
+    alias: absence
+    family_id: entity.required_absent.v1
+    bindings: {}
+    duration_hint_seconds: 5
+  - schema_version: kubeops.io/v1
+    alias: authentication
+    family_id: dependency.authentication_failure.v1
+    bindings: {}
+    duration_hint_seconds: 6
+bridge_relationships: []
+masked_aliases: []
+gap_seconds: 2
+metadata:
+  coverage: [sequential, multi_fault]

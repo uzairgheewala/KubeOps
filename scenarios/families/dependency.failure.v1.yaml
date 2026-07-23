@@ -1,0 +1,139 @@
+schema_version: kubeops.io/v1
+family_id: dependency.failure.v1
+version: "1.0.0"
+title: "${consumer_name} depends on ${provider_name}"
+description: >-
+  Generic two-entity dependency family. Concrete child families refine the
+  violated contract and disturbance mechanism without changing the topology.
+parent_family_id: null
+abstract: true
+parameters:
+  - name: consumer_id
+    title: Consumer ID
+    parameter_type: string
+    default: consumer
+  - name: consumer_name
+    title: Consumer name
+    parameter_type: string
+    default: API service
+  - name: consumer_type
+    title: Consumer type
+    parameter_type: enum
+    options: [workload, application, operational_process]
+    default: application
+  - name: provider_id
+    title: Provider ID
+    parameter_type: string
+    default: provider
+  - name: provider_name
+    title: Provider name
+    parameter_type: string
+    default: Kubernetes API
+  - name: provider_type
+    title: Provider type
+    parameter_type: enum
+    options: [control_plane_service, platform_service, database, external_service]
+    default: control_plane_service
+  - name: dependency_kind
+    title: Dependency contract
+    parameter_type: enum
+    options: [requires_for_startup, requires_for_readiness, requires_for_service, requires_for_recovery]
+    default: requires_for_service
+constraints:
+  - constraint_type: not_equal
+    parameters: [consumer_id, provider_id]
+    message: Consumer and provider IDs must be distinct.
+signature:
+  invariant_families: [readiness]
+  disturbance_mechanisms: [omission]
+  temporal_forms: [persistent]
+  topology_patterns: [linear_dependency]
+  observation_profiles: [full, consumer_only, delayed_provider, contradictory]
+  recovery_strategy_classes: [repair_provider, switch_provider, degrade_consumer]
+  coverage_labels: [dependency, two_node, parent_family]
+blueprint:
+  entities:
+    - entity_id: "${consumer_id}"
+      entity_type: "${consumer_type}"
+      name: "${consumer_name}"
+      plane: application
+      desired_state:
+        serviceable: true
+      observed_state:
+        exists: true
+        ready: true
+        serviceable: true
+    - entity_id: "${provider_id}"
+      entity_type: "${provider_type}"
+      name: "${provider_name}"
+      plane: platform
+      desired_state:
+        serviceable: true
+      observed_state:
+        exists: true
+        reachable: true
+        authenticated: true
+        authorized: true
+        serviceable: true
+  relationships:
+    - relationship_id: "${consumer_id}->${provider_id}"
+      source_id: "${consumer_id}"
+      target_id: "${provider_id}"
+      relationship_type: "${dependency_kind}"
+      contract:
+        target_state: serviceable
+        required_value: true
+      propagation:
+        effect_if_violated: consumer_not_serviceable
+      confidence: 1.0
+      provenance: scenario_family
+  invariants:
+    - invariant_id: consumer.serviceable
+      title: Consumer remains serviceable
+      family: readiness
+      subject_id: "${consumer_id}"
+      predicate:
+        predicate_type: field_equals
+        entity_id: "${consumer_id}"
+        path: observed_state.serviceable
+        value: true
+      severity: critical
+      description: The consumer must retain its declared semantic capability.
+      affected_objectives: [environment_usable]
+  transition_rules: []
+  observation_profiles:
+    - profile_id: full
+      title: Full authoritative observation
+      profile_kind: full
+    - profile_id: consumer_only
+      title: Only the downstream symptom is visible
+      profile_kind: partial
+      hidden_entity_ids: ["${provider_id}"]
+    - profile_id: delayed_provider
+      title: Provider evidence arrives three seconds late
+      profile_kind: delayed
+      lag_seconds:
+        "${provider_id}": 3
+    - profile_id: contradictory
+      title: Provider health is reported incorrectly
+      profile_kind: contradictory
+      contradictory_overrides:
+        "${provider_id}":
+          observed_state.serviceable: true
+disturbances:
+  - disturbance_id: generic-provider-degradation
+    title: Provider becomes semantically unavailable
+    mechanism: omission
+    temporal_form: persistent
+    mutations:
+      - mutation_id: provider-serviceability-lost
+        at_seconds: 2
+        description: Provider stops satisfying the dependency contract.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${provider_id}"
+          path: observed_state.serviceable
+          value: false
+default_disturbance_id: generic-provider-degradation
+default_observation_profile_id: full
+tags: [abstractable, dependency]

@@ -1,0 +1,111 @@
+schema_version: kubeops.io/v1
+family_id: dependency.authentication_failure.v1
+version: "1.0.0"
+title: "${consumer_name} cannot authenticate to ${provider_name}"
+description: >-
+  The endpoint is reachable and the credential may exist, but the consumer
+  cannot establish the intended identity. This family deliberately remains
+  separate from authorization denial.
+parent_family_id: dependency.failure.v1
+parameters:
+  - name: credential_present
+    title: Credential exists
+    parameter_type: boolean
+    default: true
+  - name: propagation_failure
+    title: Credential propagation fails
+    parameter_type: boolean
+    default: true
+constraints: []
+signature:
+  invariant_families: [authentication, readiness]
+  disturbance_mechanisms: [omission, expiration]
+  temporal_forms: [persistent]
+  topology_patterns: [linear_dependency, identity_boundary]
+  observation_profiles: [full, consumer_only, delayed_provider, contradictory]
+  recovery_strategy_classes: [rotate_credential, repair_binding, repair_client_configuration]
+  coverage_labels: [dependency, authentication, authn_not_authz]
+blueprint:
+  entities:
+    - entity_id: "${consumer_id}"
+      observed_state:
+        credential_present: "${credential_present}"
+        credential_propagated: true
+    - entity_id: "${provider_id}"
+      observed_state:
+        reachable: true
+        authenticated: true
+        authorized: true
+  invariants:
+    - invariant_id: dependency.authenticated
+      title: Consumer authenticates to provider
+      family: authentication
+      subject_id: "${consumer_id}"
+      predicate:
+        predicate_type: all_of
+        predicates:
+          - predicate_type: field_equals
+            entity_id: "${provider_id}"
+            path: observed_state.reachable
+            value: true
+          - predicate_type: field_equals
+            entity_id: "${provider_id}"
+            path: observed_state.authenticated
+            value: true
+      severity: critical
+      description: Reachability is insufficient; the provider must accept the intended identity.
+      affected_objectives: [environment_usable]
+  transition_rules:
+    - rule_id: propagate-authentication-failure
+      title: Authentication failure removes consumer serviceability
+      conditions:
+        - predicate_type: field_equals
+          entity_id: "${provider_id}"
+          path: observed_state.authenticated
+          value: false
+      effects:
+        - mutation_type: set_state
+          entity_id: "${consumer_id}"
+          path: observed_state.serviceable
+          value: false
+      delay_seconds: 1
+      fire_once: true
+  observation_profiles: []
+disturbances:
+  - disturbance_id: credential-not-applied
+    title: Credential is present but omitted from the request
+    mechanism: omission
+    temporal_form: persistent
+    mutations:
+      - mutation_id: credential-propagation-state
+        at_seconds: 2
+        description: Consumer credential propagation follows the selected condition.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${consumer_id}"
+          path: observed_state.credential_propagated
+          value: false
+      - mutation_id: provider-rejects-identity
+        at_seconds: 2
+        description: Provider rejects the unauthenticated request.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${provider_id}"
+          path: observed_state.authenticated
+          value: false
+  - disturbance_id: credential-expired
+    title: Credential expires
+    mechanism: expiration
+    temporal_form: delayed_effect
+    mutations:
+      - mutation_id: provider-rejects-expired-identity
+        at_seconds: 4
+        description: Provider rejects the expired credential.
+        mutation:
+          mutation_type: set_state
+          entity_id: "${provider_id}"
+          path: observed_state.authenticated
+          value: false
+default_disturbance_id: credential-not-applied
+default_observation_profile_id: full
+tags: [dependency, authentication, basis]
