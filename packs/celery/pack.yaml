@@ -11,17 +11,17 @@ dependencies:
   pack_id: generic-kubernetes
   version_constraint: '>=1.0.0,<2.0.0'
   optional: false
-  reason: Requires generic-kubernetes semantic contracts from the Release 0.5 pack
+  reason: Requires generic-kubernetes semantic contracts from the Release 1.0 pack
     API.
 - schema_version: kubeops.io/v1
   pack_id: redis
   version_constraint: '>=1.0.0,<2.0.0'
   optional: true
-  reason: Requires redis semantic contracts from the Release 0.5 pack API.
+  reason: Requires redis semantic contracts from the Release 1.0 pack API.
 conflicts_with: []
 compatibility:
   schema_version: kubeops.io/v1
-  kubeops_constraint: '>=0.5.0,<1.0.0'
+  kubeops_constraint: '>=1.0.0,<2.0.0'
   kubernetes_constraint: '>=1.25,<2.0'
   python_constraint: '>=3.11'
   provider_constraints: {}

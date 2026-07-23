@@ -1,0 +1,9 @@
+{{- if and (eq .Values.config.artifactBackend "file") (gt (int .Values.api.replicas) 1) -}}
+{{- fail "config.artifactBackend=file requires api.replicas=1; use the S3 backend for horizontally scaled API replicas" -}}
+{{- end -}}
+{{- if and .Values.api.autoscaling.enabled (eq .Values.config.artifactBackend "file") -}}
+{{- fail "API autoscaling requires config.artifactBackend=s3 so all replicas share immutable artifacts" -}}
+{{- end -}}
+{{- if and .Values.backup.enabled (eq .Values.config.artifactBackend "s3") (not .Values.backup.externalArtifactBackupVerified) -}}
+{{- fail "S3 artifact mode requires backup.externalArtifactBackupVerified=true after an external object-store backup policy has been verified" -}}
+{{- end -}}

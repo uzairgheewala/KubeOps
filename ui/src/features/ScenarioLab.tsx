@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import { api } from "../api/client";
 import { ArtifactExplorer } from "../components/ArtifactExplorer";
 import { Badge } from "../components/Badge";
@@ -166,7 +167,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
 
         <label className="field">
           <span>Scenario family</span>
-          <select value={family.family_id} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setFamilyId(event.target.value)}>
+          <select value={family.family_id} onChange={(event: ChangeEvent<HTMLSelectElement>) => setFamilyId(event.target.value)}>
             {families.map((item) => (
               <option key={item.family_id} value={item.family_id}>{item.family_id}</option>
             ))}
@@ -192,7 +193,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
                   <input
                     type="checkbox"
                     checked={Boolean(value)}
-                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => setBindings({ ...bindings, [parameter.name]: event.target.checked })}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => setBindings({ ...bindings, [parameter.name]: event.target.checked })}
                   />
                   <span>{parameter.title}</span>
                 </label>
@@ -204,7 +205,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
                   <span>{parameter.title}</span>
                   <select
                     value={String(value ?? "")}
-                    onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setBindings({ ...bindings, [parameter.name]: event.target.value })}
+                    onChange={(event: ChangeEvent<HTMLSelectElement>) => setBindings({ ...bindings, [parameter.name]: event.target.value })}
                   >
                     {parameter.options.map((option) => (
                       <option key={String(option)} value={String(option)}>{String(option)}</option>
@@ -219,7 +220,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
                 <input
                   type={parameter.parameter_type === "integer" ? "number" : "text"}
                   value={String(value ?? "")}
-                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => setBindings({
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => setBindings({
                     ...bindings,
                     [parameter.name]: parameter.parameter_type === "integer"
                       ? Number(event.target.value)
@@ -233,7 +234,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
 
         <label className="field">
           <span>Disturbance</span>
-          <select value={disturbanceId} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setDisturbanceId(event.target.value)}>
+          <select value={disturbanceId} onChange={(event: ChangeEvent<HTMLSelectElement>) => setDisturbanceId(event.target.value)}>
             {family.disturbances.map((item) => (
               <option key={item.disturbance_id} value={item.disturbance_id}>{item.title}</option>
             ))}
@@ -242,7 +243,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
 
         <label className="field">
           <span>Observation profile</span>
-          <select value={profileId} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setProfileId(event.target.value)}>
+          <select value={profileId} onChange={(event: ChangeEvent<HTMLSelectElement>) => setProfileId(event.target.value)}>
             {familyObservationProfiles(family).map((item) => (
               <option key={item.profile_id} value={item.profile_id}>{item.title}</option>
             ))}
@@ -319,7 +320,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
                 min={0}
                 max={Math.max(0, run.snapshots.length - 1)}
                 value={snapshotIndex}
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSnapshotIndex(Number(event.target.value))}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => setSnapshotIndex(Number(event.target.value))}
               />
               <span>Snapshot {snapshotIndex + 1}/{run.snapshots.length} · t+{snapshot?.at_seconds ?? 0}s</span>
               <button type="button" onClick={() => setSnapshotIndex(Math.min(run.snapshots.length - 1, snapshotIndex + 1))} disabled={snapshotIndex >= run.snapshots.length - 1}>Next →</button>

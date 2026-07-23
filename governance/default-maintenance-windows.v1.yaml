@@ -1,0 +1,19 @@
+api_version: kubeops.io/scheduling/v1
+organization_id: default
+workspace_id: default
+windows:
+  - schema_version: kubeops.io/v1
+    window_id: default-development-anytime.v1
+    organization_id: default
+    workspace_id: default
+    name: Development anytime
+    timezone: UTC
+    days_of_week: [0, 1, 2, 3, 4, 5, 6]
+    start_local_time: "00:00"
+    duration_minutes: 1440
+    allowed_operation_types: [startup, shutdown, maintenance]
+    target_ids: []
+    enabled: false
+    metadata:
+      seeded: true
+      note: Enable explicitly after reviewing workspace policy.

@@ -28,7 +28,7 @@ export function PackWorkbench() {
   return (
     <main className="pack-workbench">
       <aside className="pack-rail">
-        <div className="section-heading"><div><small>Release 0.5</small><h2>Knowledge Packs</h2></div><Badge tone={catalog.resolution.blocked_pack_ids.length ? "warning" : "positive"}>{catalog.resolution.active_pack_ids.length} active</Badge></div>
+        <div className="section-heading"><div><small>Release 1.0</small><h2>Knowledge Packs</h2></div><Badge tone={catalog.resolution.blocked_pack_ids.length ? "warning" : "positive"}>{catalog.resolution.active_pack_ids.length} active</Badge></div>
         <p className="muted">Provider and component semantics resolved before they enter the operational kernel.</p>
         <div className="pack-list">
           {catalog.packs.map((item) => <button type="button" key={item.manifest.pack_id} className={selectedId === item.manifest.pack_id ? "is-selected" : ""} onClick={() => setSelectedId(item.manifest.pack_id)}>

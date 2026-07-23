@@ -1,6 +1,7 @@
 import type {
   AccessValidation,
   ArtifactDetail,
+  ArtifactSummary,
   EnvironmentDefinition,
   EnvironmentSnapshot,
   EnvironmentSummary,
@@ -26,16 +27,52 @@ import type {
   TopologyGraph,
   PackCatalogResponse,
   PackResolution,
-  PackCoverageReport
+  PackCoverageReport,
+  OrganizationDefinition,
+  WorkspaceDefinition,
+  RoleGrant,
+  FleetDefinition,
+  FleetAssessment,
+  FleetOperationPlan,
+  ExecutorAgentDefinition,
+  ExecutionTask,
+  AuditEvent,
+  AuditChainVerification,
+  RetentionPolicy,
+  RetentionPlan,
+  ControlPlaneBackupManifest,
+  ControlPlaneRestorePlan,
+  UpgradeReadinessReport,
+  CurrentIdentity,
+  RateLimitRule,
+  ConcurrencyRule,
+  MaintenanceWindow,
+  ScheduledOperation,
+  ScheduleDecision
 } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+let apiToken: string | null = null;
+let apiOrganizationId = "default";
+let apiWorkspaceId = "default";
+
+export function setApiToken(token: string | null): void { apiToken = token; }
+export function setApiScope(organizationId: string, workspaceId: string): void {
+  apiOrganizationId = organizationId.trim() || "default";
+  apiWorkspaceId = workspaceId.trim() || "default";
+}
+export function getApiScope(): { organizationId: string; workspaceId: string } {
+  return { organizationId: apiOrganizationId, workspaceId: apiWorkspaceId };
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      "X-KubeOps-Organization": apiOrganizationId,
+      "X-KubeOps-Workspace": apiWorkspaceId,
+      ...(apiToken ? { Authorization: `Token ${apiToken}` } : {}),
       ...(options?.headers ?? {})
     }
   });
@@ -52,6 +89,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   status: () => request<SystemStatus>("/system/status"),
+  login: (username: string, password: string) => request<{ token: string }>("/auth/token", { method: "POST", body: JSON.stringify({ username, password }) }),
+  me: () => request<CurrentIdentity>("/auth/me"),
   packs: () => request<PackCatalogResponse>("/packs"),
   resolvePacks: (packIds?: string[]) => request<PackResolution>("/packs/resolve", { method: "POST", body: JSON.stringify({ pack_ids: packIds ?? [] }) }),
   packCoverage: () => request<PackCoverageReport>("/packs/coverage"),
@@ -129,5 +168,35 @@ export const api = {
   resumeOperation: (operationId: string, payload: Record<string, unknown> = {}) =>
     request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/resume`, { method: "POST", body: JSON.stringify(payload) }),
   rollbackOperation: (operationId: string, payload: Record<string, unknown> = {}) =>
-    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/rollback`, { method: "POST", body: JSON.stringify(payload) })
+    request<OperationRun>(`/operations/${encodeURIComponent(operationId)}/rollback`, { method: "POST", body: JSON.stringify(payload) }),
+
+  organizations: () => request<OrganizationDefinition[]>("/organizations"),
+  workspaces: () => request<WorkspaceDefinition[]>("/workspaces"),
+  roleGrants: () => request<RoleGrant[]>("/role-grants"),
+  createRoleGrant: (payload: RoleGrant) => request<RoleGrant>("/role-grants", { method: "POST", body: JSON.stringify(payload) }),
+  evaluateAuthorization: (payload: Record<string, unknown>) => request<Record<string, unknown>>("/authorization/evaluate", { method: "POST", body: JSON.stringify(payload) }),
+
+  fleets: () => request<FleetDefinition[]>("/fleets"),
+  fleet: (fleetId: string) => request<FleetDefinition>(`/fleets/${encodeURIComponent(fleetId)}`),
+  assessFleet: (fleetId: string) => request<{ assessment: FleetAssessment; artifacts: ArtifactSummary[] }>(`/fleets/${encodeURIComponent(fleetId)}/assess`, { method: "POST", body: "{}" }),
+  planFleetOperation: (fleetId: string, operationType: string) => request<FleetOperationPlan>(`/fleets/${encodeURIComponent(fleetId)}/operations/plan`, { method: "POST", body: JSON.stringify({ operation_type: operationType }) }),
+
+  executorAgents: () => request<ExecutorAgentDefinition[]>("/executors"),
+  executionTasks: () => request<ExecutionTask[]>("/execution-tasks"),
+  auditEvents: (workspaceId?: string) => request<AuditEvent[]>(`/audit/events${workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : ""}`),
+  verifyAudit: (workspaceId?: string) => request<AuditChainVerification>(`/audit/verify${workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : ""}`),
+  rateLimits: () => request<RateLimitRule[]>("/governance/rate-limits"),
+  concurrencyLimits: () => request<ConcurrencyRule[]>("/governance/concurrency-limits"),
+  maintenanceWindows: () => request<MaintenanceWindow[]>("/maintenance-windows"),
+  scheduledOperations: () => request<ScheduledOperation[]>("/scheduled-operations"),
+  createScheduledOperation: (payload: Partial<ScheduledOperation>) => request<ScheduledOperation & { decision: ScheduleDecision }>("/scheduled-operations", { method: "POST", body: JSON.stringify(payload) }),
+  evaluateScheduledOperation: (scheduleId: string) => request<{ schedule: ScheduledOperation; decision: ScheduleDecision }>(`/scheduled-operations/${encodeURIComponent(scheduleId)}/evaluate`, { method: "POST", body: "{}" }),
+  materializeScheduledOperation: (scheduleId: string) => request<{ schedule: ScheduledOperation; decision: ScheduleDecision; result?: Record<string, unknown> }>(`/scheduled-operations/${encodeURIComponent(scheduleId)}/materialize`, { method: "POST", body: "{}" }),
+  cancelScheduledOperation: (scheduleId: string, reason = "cancelled by operator") => request<ScheduledOperation>(`/scheduled-operations/${encodeURIComponent(scheduleId)}/cancel`, { method: "POST", body: JSON.stringify({ reason }) }),
+  retentionPolicies: () => request<RetentionPolicy[]>("/retention/policies"),
+  planRetention: (policyId: string) => request<RetentionPlan>("/retention/plan", { method: "POST", body: JSON.stringify({ policy_id: policyId }) }),
+  platformBackups: () => request<ControlPlaneBackupManifest[]>("/platform/backups"),
+  createPlatformBackup: (payload: Record<string, unknown> = {}) => request<{ backup: ControlPlaneBackupManifest; artifacts: ArtifactSummary[] }>("/platform/backups", { method: "POST", body: JSON.stringify(payload) }),
+  platformRestorePlan: (backupId: string, targetVersion = "1.0.0") => request<ControlPlaneRestorePlan>("/platform/restore-plan", { method: "POST", body: JSON.stringify({ backup_id: backupId, target_version: targetVersion }) }),
+  platformReadiness: (workspaceId?: string, targetVersion = "1.0.0") => request<UpgradeReadinessReport>(`/platform/readiness?target_version=${encodeURIComponent(targetVersion)}${workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : ""}`)
 };

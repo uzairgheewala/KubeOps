@@ -1,3 +1,4 @@
+__version__ = "1.0.0"
 from kubeops_core.models.pack import *  # noqa: F403
 from kubeops_core.packs import PackManager, PackRuntime, Version, satisfies
 

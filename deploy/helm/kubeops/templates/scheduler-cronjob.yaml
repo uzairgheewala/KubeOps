@@ -1,0 +1,50 @@
+{{- if .Values.scheduler.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "kubeops.fullname" . }}-operation-scheduler
+  labels: {{- include "kubeops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operation-scheduler
+spec:
+  schedule: {{ .Values.scheduler.schedule | quote }}
+  concurrencyPolicy: {{ .Values.scheduler.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.scheduler.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.scheduler.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: operation-scheduler
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "kubeops.serviceAccountName" . }}
+          securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+          containers:
+            - name: scheduler
+              image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+              imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+              command: ["python", "control_plane/manage.py", "run_operation_scheduler"]
+              args: ["--once", "--limit", {{ .Values.scheduler.batchLimit | quote }}]
+              envFrom: [{ configMapRef: { name: {{ include "kubeops.fullname" . }}-config } }]
+              env:
+                - { name: DJANGO_SECRET_KEY, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.djangoSecretKeyKey }} } } }
+                - { name: DATABASE_URL, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.databaseUrlKey }} } } }
+                - { name: KUBEOPS_PACK_TRUST_PUBLIC_KEY, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.packTrustPublicKeyKey }}, optional: true } } }
+                - { name: KUBEOPS_PACK_TRUST_SECRET, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.packTrustSecretKey }}, optional: true } } }
+              securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] }, readOnlyRootFilesystem: true }
+              resources: {{ toYaml .Values.scheduler.resources | nindent 16 }}
+              volumeMounts:
+                - { name: tmp, mountPath: /tmp }
+                - { name: operations, mountPath: /workspace/operations }
+          volumes:
+            - { name: tmp, emptyDir: {} }
+            - name: operations
+              {{- if .Values.persistence.enabled }}
+              persistentVolumeClaim: { claimName: {{ include "kubeops.fullname" . }}-operations }
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+{{- end }}

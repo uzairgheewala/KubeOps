@@ -6,27 +6,45 @@ import { EnvironmentWorkbench } from "./features/environments/EnvironmentWorkben
 import { IncidentWorkbench } from "./features/incidents/IncidentWorkbench";
 import { OperationWorkbench } from "./features/operations/OperationWorkbench";
 import { PackWorkbench } from "./features/packs/PackWorkbench";
+import { FleetWorkbench } from "./features/fleets/FleetWorkbench";
+import { GovernanceWorkbench } from "./features/governance/GovernanceWorkbench";
+import { LoginPanel } from "./features/governance/LoginPanel";
 import { ScenarioLab } from "./features/ScenarioLab";
 import { SchemaInspector } from "./features/SchemaInspector";
-import type { ScenarioFamily, SystemStatus } from "./types";
+import type { CurrentIdentity, ScenarioFamily, SystemStatus } from "./types";
 import "./styles.css";
 
-type View = "environments" | "incidents" | "operations" | "packs" | "lab" | "composition" | "schemas";
+type View = "environments" | "fleets" | "incidents" | "operations" | "governance" | "packs" | "lab" | "composition" | "schemas";
 
 export default function App() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [families, setFamilies] = useState<ScenarioFamily[]>([]);
   const [view, setView] = useState<View>("environments");
   const [error, setError] = useState<string | null>(null);
+  const [identity, setIdentity] = useState<CurrentIdentity | null>(null);
+  const [authenticationRequired, setAuthenticationRequired] = useState(false);
+
+  const loadRegistries = () => api.families().then((nextFamilies) => setFamilies(nextFamilies.filter((family) => !family.abstract)));
 
   useEffect(() => {
-    Promise.all([api.status(), api.families()])
-      .then(([nextStatus, nextFamilies]) => {
-        setStatus(nextStatus);
-        setFamilies(nextFamilies.filter((family) => !family.abstract));
-      })
-      .catch((reason: Error) => setError(reason.message));
+    api.status().then(async (nextStatus) => {
+      setStatus(nextStatus);
+      if (nextStatus.anonymous_read_enabled) {
+        await loadRegistries();
+      } else {
+        setAuthenticationRequired(true);
+      }
+    }).catch((reason: Error) => setError(reason.message));
   }, []);
+
+  const authenticated = async (nextIdentity: CurrentIdentity) => {
+    setIdentity(nextIdentity);
+    setAuthenticationRequired(false);
+    setError(null);
+    await loadRegistries();
+  };
+
+  if (authenticationRequired && !identity) return <LoginPanel onAuthenticated={(value) => void authenticated(value)} />;
 
   return (
     <div className="app-shell">
@@ -40,8 +58,10 @@ export default function App() {
         </div>
         <nav className="main-nav" aria-label="Primary">
           <button type="button" className={view === "environments" ? "active" : ""} onClick={() => setView("environments")}>Environments</button>
+          <button type="button" className={view === "fleets" ? "active" : ""} onClick={() => setView("fleets")}>Fleets</button>
           <button type="button" className={view === "incidents" ? "active" : ""} onClick={() => setView("incidents")}>Incidents</button>
           <button type="button" className={view === "operations" ? "active" : ""} onClick={() => setView("operations")}>Operations</button>
+          <button type="button" className={view === "governance" ? "active" : ""} onClick={() => setView("governance")}>Governance</button>
           <button type="button" className={view === "packs" ? "active" : ""} onClick={() => setView("packs")}>Packs</button>
           <button type="button" className={view === "lab" ? "active" : ""} onClick={() => setView("lab")}>Scenario Lab</button>
           <button type="button" className={view === "composition" ? "active" : ""} onClick={() => setView("composition")}>Composition Lab</button>
@@ -50,9 +70,10 @@ export default function App() {
         <div className="header-status">
           <Badge tone={status?.status === "ok" ? "positive" : "warning"}>{status?.status ?? "connecting"}</Badge>
           <Badge tone="accent">{status?.mode ?? "read only"}</Badge>
-          <span>Release {status?.release ?? "0.5.0"}</span>
+          <span>Release {status?.release ?? "1.0.0"}</span>
           {status?.environment_count !== undefined && <span>{status.environment_count} environments</span>}
           {status?.incident_count !== undefined && <span>{status.incident_count} incidents</span>}
+          {identity && <span>{identity.username}</span>}
         </div>
       </header>
 
@@ -66,10 +87,14 @@ export default function App() {
         <main className="startup-loading">Loading operational registries…</main>
       ) : view === "environments" ? (
         <EnvironmentWorkbench />
+      ) : view === "fleets" ? (
+        <FleetWorkbench />
       ) : view === "incidents" ? (
         <IncidentWorkbench />
       ) : view === "operations" ? (
         <OperationWorkbench />
+      ) : view === "governance" ? (
+        <GovernanceWorkbench />
       ) : view === "packs" ? (
         <PackWorkbench />
       ) : view === "lab" ? (

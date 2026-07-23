@@ -1,0 +1,9 @@
+KubeOps {{ .Chart.AppVersion }} is installed.
+
+1. Ensure Secret {{ .Values.secrets.existingSecret }} contains:
+   - {{ .Values.secrets.djangoSecretKeyKey }}
+   - {{ .Values.secrets.databaseUrlKey }}
+   - {{ .Values.secrets.packTrustSecretKey }} (optional unless signed-pack enforcement is enabled)
+2. Live execution remains disabled unless config.liveExecutionEnabled is explicitly set to "1".
+3. Verify readiness:
+   kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}

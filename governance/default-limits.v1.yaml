@@ -1,0 +1,39 @@
+api_version: kubeops.io/governance/v1
+organization_id: default
+workspace_id: default
+rate_rules:
+  - schema_version: kubeops.io/v1
+    rule_id: default-operation-create-rate.v1
+    scope_type: workspace
+    scope_id: default
+    operation: operation.create
+    limit: 60
+    window_seconds: 60
+    burst: 10
+    enabled: true
+  - schema_version: kubeops.io/v1
+    rule_id: default-operation-dispatch-rate.v1
+    scope_type: workspace
+    scope_id: default
+    operation: operation.dispatch
+    limit: 120
+    window_seconds: 60
+    burst: 20
+    enabled: true
+concurrency_rules:
+  - schema_version: kubeops.io/v1
+    rule_id: default-active-operations.v1
+    scope_type: workspace
+    scope_id: default
+    operation_type: operation.create
+    maximum_active: 10
+    serialize_by_target: false
+    enabled: true
+  - schema_version: kubeops.io/v1
+    rule_id: default-dispatch-tasks.v1
+    scope_type: workspace
+    scope_id: default
+    operation_type: operation.dispatch
+    maximum_active: 100
+    serialize_by_target: true
+    enabled: true

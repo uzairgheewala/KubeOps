@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import type { OperationalEntity, OperationalProfileAssessment, Relationship } from "../types";
 import { Badge } from "./Badge";
 import { JsonInspector } from "./JsonInspector";
@@ -91,24 +92,24 @@ export function EnvironmentTopology({ entities, relationships, assessments }: Pr
       <div className="topology-toolbar">
         <label className="field compact-control">
           <span>Search</span>
-          <input value={search} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)} placeholder="Name, type, or ID" />
+          <input value={search} onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)} placeholder="Name, type, or ID" />
         </label>
         <label className="field compact-control">
           <span>Namespace</span>
-          <select value={namespace} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setNamespace(event.target.value)}>
+          <select value={namespace} onChange={(event: ChangeEvent<HTMLSelectElement>) => setNamespace(event.target.value)}>
             <option value="all">All namespaces</option>
             {namespaces.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </label>
         <label className="field compact-control">
           <span>Plane</span>
-          <select value={plane} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setPlane(event.target.value)}>
+          <select value={plane} onChange={(event: ChangeEvent<HTMLSelectElement>) => setPlane(event.target.value)}>
             <option value="all">All planes</option>
             {planes.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}
           </select>
         </label>
         <label className="form-check topology-check">
-          <input className="form-check-input" type="checkbox" checked={hideHealthy} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setHideHealthy(event.target.checked)} />
+          <input className="form-check-input" type="checkbox" checked={hideHealthy} onChange={(event: ChangeEvent<HTMLInputElement>) => setHideHealthy(event.target.checked)} />
           <span className="form-check-label">Hide healthy</span>
         </label>
       </div>

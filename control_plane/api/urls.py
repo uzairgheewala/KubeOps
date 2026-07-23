@@ -1,4 +1,18 @@
 from django.urls import path
+from rest_framework.authtoken.views import obtain_auth_token
+
+
+from .release_10 import (
+    AuditEventListView, AuditExportView, AuditVerifyView, AuthorizationEvaluateView,
+    ExecutionTaskClaimView, ExecutionTaskCompleteView, ExecutionTaskListView,
+    ExecutorAgentListView, ExecutorHeartbeatView, FleetAssessmentView, FleetDetailView,
+    FleetListView, FleetOperationPlanView, OrganizationListView, PackSignView, PackVerifyView,
+    PlatformBackupListView, PlatformReadinessView, PlatformRestorePlanView,
+    RetentionPlanView, RetentionPolicyListView, RoleGrantListView, WorkspaceListView, CurrentIdentityView,
+    RateLimitRuleListView, ConcurrencyRuleListView, MaintenanceWindowListView,
+    ScheduledOperationListView, ScheduledOperationDetailView, ScheduledOperationEvaluateView,
+    ScheduledOperationMaterializeView, ScheduledOperationCancelView,
+)
 
 from .views import (
     ArtifactDetailView,
@@ -29,6 +43,8 @@ from .views import (
     OperationCancelView,
     OperationCertificateView,
     OperationDetailView,
+    OperationDistributedDispatchView,
+    OperationDistributedVerifyView,
     OperationListCreateView,
     OperationPauseView,
     OperationResumeView,
@@ -54,6 +70,39 @@ from .views import (
 )
 
 urlpatterns = [
+    path("auth/token", obtain_auth_token, name="auth-token"),
+    path("auth/me", CurrentIdentityView.as_view(), name="auth-me"),
+    path("organizations", OrganizationListView.as_view(), name="organization-list"),
+    path("workspaces", WorkspaceListView.as_view(), name="workspace-list"),
+    path("role-grants", RoleGrantListView.as_view(), name="role-grant-list"),
+    path("authorization/evaluate", AuthorizationEvaluateView.as_view(), name="authorization-evaluate"),
+    path("fleets", FleetListView.as_view(), name="fleet-list"),
+    path("fleets/<path:fleet_id>", FleetDetailView.as_view(), name="fleet-detail"),
+    path("fleets/<path:fleet_id>/assess", FleetAssessmentView.as_view(), name="fleet-assess"),
+    path("fleets/<path:fleet_id>/operations/plan", FleetOperationPlanView.as_view(), name="fleet-operation-plan"),
+    path("executors", ExecutorAgentListView.as_view(), name="executor-list"),
+    path("executors/<path:agent_id>/heartbeat", ExecutorHeartbeatView.as_view(), name="executor-heartbeat"),
+    path("execution-tasks", ExecutionTaskListView.as_view(), name="execution-task-list"),
+    path("execution-tasks/<path:task_id>/claim", ExecutionTaskClaimView.as_view(), name="execution-task-claim"),
+    path("execution-tasks/<path:task_id>/complete", ExecutionTaskCompleteView.as_view(), name="execution-task-complete"),
+    path("audit/events", AuditEventListView.as_view(), name="audit-events"),
+    path("audit/verify", AuditVerifyView.as_view(), name="audit-verify"),
+    path("audit/export", AuditExportView.as_view(), name="audit-export"),
+    path("governance/rate-limits", RateLimitRuleListView.as_view(), name="rate-limit-list"),
+    path("governance/concurrency-limits", ConcurrencyRuleListView.as_view(), name="concurrency-limit-list"),
+    path("maintenance-windows", MaintenanceWindowListView.as_view(), name="maintenance-window-list"),
+    path("scheduled-operations", ScheduledOperationListView.as_view(), name="scheduled-operation-list"),
+    path("scheduled-operations/<path:schedule_id>", ScheduledOperationDetailView.as_view(), name="scheduled-operation-detail"),
+    path("scheduled-operations/<path:schedule_id>/evaluate", ScheduledOperationEvaluateView.as_view(), name="scheduled-operation-evaluate"),
+    path("scheduled-operations/<path:schedule_id>/materialize", ScheduledOperationMaterializeView.as_view(), name="scheduled-operation-materialize"),
+    path("scheduled-operations/<path:schedule_id>/cancel", ScheduledOperationCancelView.as_view(), name="scheduled-operation-cancel"),
+    path("retention/policies", RetentionPolicyListView.as_view(), name="retention-policy-list"),
+    path("retention/plan", RetentionPlanView.as_view(), name="retention-plan"),
+    path("packs/<path:pack_id>/sign", PackSignView.as_view(), name="pack-sign"),
+    path("packs/<path:pack_id>/verify", PackVerifyView.as_view(), name="pack-verify"),
+    path("platform/backups", PlatformBackupListView.as_view(), name="platform-backup-list"),
+    path("platform/restore-plan", PlatformRestorePlanView.as_view(), name="platform-restore-plan"),
+    path("platform/readiness", PlatformReadinessView.as_view(), name="platform-readiness"),
     path("system/status", SystemStatusView.as_view(), name="system-status"),
     path("packs", KnowledgePackListView.as_view(), name="pack-list"),
     path("packs/resolve", KnowledgePackResolveView.as_view(), name="pack-resolve"),
@@ -85,6 +134,8 @@ urlpatterns = [
     path("operations/<str:operation_id>", OperationDetailView.as_view(), name="operation-detail"),
     path("operations/<str:operation_id>/approvals", OperationApprovalView.as_view(), name="operation-approval"),
     path("operations/<str:operation_id>/run", GuardedOperationRunView.as_view(), name="operation-run"),
+    path("operations/<str:operation_id>/dispatch", OperationDistributedDispatchView.as_view(), name="operation-dispatch"),
+    path("operations/<str:operation_id>/verify-live", OperationDistributedVerifyView.as_view(), name="operation-verify-live"),
     path("operations/<str:operation_id>/pause", OperationPauseView.as_view(), name="operation-pause"),
     path("operations/<str:operation_id>/cancel", OperationCancelView.as_view(), name="operation-cancel"),
     path("operations/<str:operation_id>/resume", OperationResumeView.as_view(), name="operation-resume"),

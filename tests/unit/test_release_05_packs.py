@@ -26,7 +26,7 @@ from kubeops_core.models.diagnosis import EvidenceFact, Symptom
 
 
 def _manager(repo_root: Path) -> PackManager:
-    manager = PackManager(kubeops_version="0.5.0", kubernetes_version="1.31.0")
+    manager = PackManager(kubeops_version="1.0.0", kubernetes_version="1.31.0")
     assert manager.load_directory(repo_root / "packs") == 11
     return manager
 
@@ -71,7 +71,7 @@ def test_dependency_closure_and_version_compatibility(repo_root: Path) -> None:
     resolution = manager.resolve(["kind"])
     assert resolution.active_pack_ids == ["generic-kubernetes", "docker-host", "kind"]
 
-    incompatible = PackManager(kubeops_version="1.2.0")
+    incompatible = PackManager(kubeops_version="2.0.0")
     incompatible.load_directory(repo_root / "packs")
     issues = incompatible.validate("kind")
     assert any(item.code == "kubeops_version_incompatible" for item in issues)

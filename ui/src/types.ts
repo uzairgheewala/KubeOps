@@ -146,6 +146,16 @@ export type SystemStatus = {
   diagnostic_collector_count?: number;
   causal_template_count?: number;
   capabilities: string[];
+  anonymous_read_enabled?: boolean;
+};
+
+export type CurrentIdentity = {
+  principal_id: string;
+  username: string;
+  is_superuser: boolean;
+  is_staff: boolean;
+  organization_id: string;
+  workspace_id: string;
 };
 
 export type RegistryEntry = {
@@ -850,4 +860,320 @@ export type PackCatalogResponse = {
   packs: Array<{ manifest: KnowledgePackManifest; source: string; status: PackStatus | null }>;
   resolution: PackResolution;
   coverage: PackCoverageReport;
+};
+
+// Release 1.0 production control-plane contracts
+export type OrganizationDefinition = {
+  organization_id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  labels: Record<string, string>;
+  metadata: Record<string, unknown>;
+};
+
+export type WorkspaceDefinition = {
+  workspace_id: string;
+  organization_id: string;
+  name: string;
+  slug: string;
+  active: boolean;
+  labels: Record<string, string>;
+  metadata: Record<string, unknown>;
+};
+
+export type RoleGrant = {
+  grant_id: string;
+  principal_id: string;
+  role: "viewer" | "operator" | "approver" | "auditor" | "admin";
+  scope_type: string;
+  scope_id: string;
+  capabilities: string[];
+  environment_classes: string[];
+  granted_by?: string | null;
+  granted_at_iso: string;
+  expires_at_iso?: string | null;
+  active: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type FleetMember = {
+  environment_id: string;
+  required_profile_ids: string[];
+  criticality: string;
+  failure_domain?: string | null;
+  labels: Record<string, string>;
+};
+
+export type FleetDefinition = {
+  fleet_id: string;
+  organization_id: string;
+  workspace_id: string;
+  name: string;
+  members: FleetMember[];
+  dependencies: Array<{
+    dependency_id: string;
+    source_environment_id: string;
+    target_environment_id: string;
+    relationship_type: string;
+    required_profile_id?: string | null;
+    maximum_unavailability_seconds?: number | null;
+    metadata: Record<string, unknown>;
+  }>;
+  max_parallel_operations: number;
+  active: boolean;
+  labels: Record<string, string>;
+  metadata: Record<string, unknown>;
+};
+
+export type FleetEnvironmentStatus = {
+  environment_id: string;
+  status: string;
+  profile_statuses: Record<string, string>;
+  active_incident_ids: string[];
+  active_operation_ids: string[];
+  source_snapshot_id?: string | null;
+  observed_at_iso?: string | null;
+  reasons: string[];
+};
+
+export type FleetAssessment = {
+  assessment_id: string;
+  fleet_id: string;
+  status: string;
+  generated_at_iso: string;
+  environments: FleetEnvironmentStatus[];
+  common_causes: Array<{
+    finding_id: string;
+    family_id: string;
+    title: string;
+    environment_ids: string[];
+    confidence: number;
+    shared_factors: Record<string, string>;
+    incident_ids: string[];
+    evidence: string[];
+    metadata: Record<string, unknown>;
+  }>;
+  dependency_violations: string[];
+  summary: Record<string, number>;
+  metadata: Record<string, unknown>;
+};
+
+export type FleetOperationPlan = {
+  plan_id: string;
+  fleet_id: string;
+  operation_type: string;
+  created_at_iso: string;
+  waves: Array<{
+    wave_index: number;
+    environment_ids: string[];
+    blocked_by_environment_ids: string[];
+    rationale: string[];
+  }>;
+  max_parallel_operations: number;
+  protected_environment_ids: string[];
+  warnings: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type ExecutorAgentDefinition = {
+  agent_id: string;
+  organization_id: string;
+  workspace_id: string;
+  name: string;
+  status: string;
+  capabilities: string[];
+  supported_executor_ids: string[];
+  environment_ids: string[];
+  labels: Record<string, string>;
+  max_concurrency: number;
+  lease_ttl_seconds: number;
+  public_identity?: string | null;
+  registered_at_iso: string;
+  last_heartbeat_at_iso?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ExecutionTask = {
+  task_id: string;
+  organization_id: string;
+  workspace_id: string;
+  operation_id: string;
+  action_id: string;
+  environment_id: string;
+  action_type_id: string;
+  executor_id: string;
+  required_capabilities: string[];
+  target_fingerprint?: string | null;
+  status: string;
+  priority: number;
+  attempt: number;
+  max_attempts: number;
+  assigned_agent_id?: string | null;
+  payload_hash: string;
+  created_at_iso: string;
+  updated_at_iso: string;
+  metadata: Record<string, unknown>;
+};
+
+export type AuditEvent = {
+  event_id: string;
+  sequence: number;
+  organization_id: string;
+  workspace_id: string;
+  principal_id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  outcome: string;
+  occurred_at_iso: string;
+  previous_hash?: string | null;
+  event_hash: string;
+  details: Record<string, unknown>;
+};
+
+export type AuditChainVerification = {
+  valid: boolean;
+  event_count: number;
+  first_sequence?: number | null;
+  last_sequence?: number | null;
+  head_hash?: string | null;
+  errors: string[];
+  verified_at_iso: string;
+};
+
+export type RateLimitRule = {
+  rule_id: string;
+  scope_type: string;
+  scope_id: string;
+  operation: string;
+  limit: number;
+  window_seconds: number;
+  burst: number;
+  enabled: boolean;
+};
+
+export type ConcurrencyRule = {
+  rule_id: string;
+  scope_type: string;
+  scope_id: string;
+  operation_type: string;
+  maximum_active: number;
+  serialize_by_target: boolean;
+  enabled: boolean;
+};
+
+export type RetentionPolicy = {
+  policy_id: string;
+  organization_id: string;
+  scope_type: string;
+  scope_id: string;
+  artifact_retention_days: number;
+  audit_retention_days: number;
+  snapshot_retention_days: number;
+  incident_retention_days: number;
+  operation_retention_days: number;
+  preserve_failed_operations: boolean;
+  preserve_certificates: boolean;
+  legal_hold_labels: Record<string, string>;
+  enabled: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type RetentionPlan = {
+  plan_id: string;
+  policy_id: string;
+  generated_at_iso: string;
+  candidates: Array<Record<string, unknown>>;
+  eligible_candidate_ids: string[];
+  protected_candidate_ids: string[];
+  total_reclaimable_bytes: number;
+  dry_run: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type ControlPlaneBackupManifest = {
+  backup_id: string;
+  organization_id: string;
+  workspace_id: string;
+  created_at_iso: string;
+  kubeops_version: string;
+  schema_version: string;
+  components: Array<Record<string, unknown>>;
+  status: string;
+  manifest_hash: string;
+  metadata: Record<string, unknown>;
+};
+
+export type ControlPlaneRestorePlan = {
+  plan_id: string;
+  backup_id: string;
+  generated_at_iso: string;
+  target_kubeops_version: string;
+  compatible: boolean;
+  steps: Array<Record<string, unknown>>;
+  warnings: string[];
+  blockers: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type UpgradeReadinessReport = {
+  report_id: string;
+  current_version: string;
+  target_version: string;
+  generated_at_iso: string;
+  ready: boolean;
+  checks: Array<{ check_id: string; status: string; title: string; explanation: string; details: Record<string, unknown> }>;
+  blockers: string[];
+  warnings: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type MaintenanceWindow = {
+  window_id: string;
+  organization_id: string;
+  workspace_id: string;
+  name: string;
+  timezone: string;
+  days_of_week: number[];
+  start_local_time: string;
+  duration_minutes: number;
+  allowed_operation_types: string[];
+  target_ids: string[];
+  enabled: boolean;
+  metadata: Record<string, unknown>;
+};
+
+export type ScheduleDecision = {
+  decision_id: string;
+  schedule_id: string;
+  outcome: "ready" | "delay" | "deny" | "expired" | "terminal";
+  reasons: string[];
+  evaluated_at_iso: string;
+  next_eligible_at_iso?: string | null;
+  window_id?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ScheduledOperation = {
+  schedule_id: string;
+  organization_id: string;
+  workspace_id: string;
+  target_type: "environment" | "fleet";
+  target_id: string;
+  operation_type: string;
+  lifecycle_profile_id?: string | null;
+  policy_id?: string | null;
+  execution_mode: "dry_run" | "simulation" | "guarded_execution";
+  not_before_iso?: string | null;
+  deadline_iso?: string | null;
+  maintenance_window_id?: string | null;
+  materialize_automatically: boolean;
+  status: "pending" | "delayed" | "ready" | "materialized" | "blocked" | "expired" | "cancelled";
+  operation_id?: string | null;
+  fleet_plan_id?: string | null;
+  created_by: string;
+  created_at_iso: string;
+  updated_at_iso: string;
+  metadata: Record<string, unknown>;
 };

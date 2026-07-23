@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import { api } from "../../api/client";
 import { ArtifactExplorer } from "../../components/ArtifactExplorer";
 import { Badge } from "../../components/Badge";
@@ -226,17 +227,17 @@ export function EnvironmentWorkbench() {
         </button>
         {showCreate && (
           <div className="environment-create-form">
-            <label className="field"><span>Environment ID</span><input value={draft.environment_id} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, environment_id: event.target.value })} placeholder="local-kind" /></label>
-            <label className="field"><span>Name</span><input value={draft.name} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: event.target.value })} placeholder="Local Kind" /></label>
-            <label className="field"><span>Environment class</span><select value={draft.environment_class} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setDraft({ ...draft, environment_class: event.target.value as EnvironmentDefinition["environment_class"] })}><option value="development">Development</option><option value="staging">Staging</option><option value="production">Production</option><option value="simulation">Simulation</option></select></label>
-            <label className="field"><span>Cluster provider</span><input value={draft.cluster_provider} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, cluster_provider: event.target.value })} /></label>
-            <label className="field"><span>Access source</span><select value={draft.access_methods[0].method_type} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], method_type: event.target.value as "kubectl" | "kubeconfig" | "fixture" }] })}><option value="kubectl">kubectl</option><option value="kubeconfig">kubeconfig</option><option value="fixture">Fixture</option></select></label>
+            <label className="field"><span>Environment ID</span><input value={draft.environment_id} onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, environment_id: event.target.value })} placeholder="local-kind" /></label>
+            <label className="field"><span>Name</span><input value={draft.name} onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: event.target.value })} placeholder="Local Kind" /></label>
+            <label className="field"><span>Environment class</span><select value={draft.environment_class} onChange={(event: ChangeEvent<HTMLSelectElement>) => setDraft({ ...draft, environment_class: event.target.value as EnvironmentDefinition["environment_class"] })}><option value="development">Development</option><option value="staging">Staging</option><option value="production">Production</option><option value="simulation">Simulation</option></select></label>
+            <label className="field"><span>Cluster provider</span><input value={draft.cluster_provider} onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, cluster_provider: event.target.value })} /></label>
+            <label className="field"><span>Access source</span><select value={draft.access_methods[0].method_type} onChange={(event: ChangeEvent<HTMLSelectElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], method_type: event.target.value as "kubectl" | "kubeconfig" | "fixture" }] })}><option value="kubectl">kubectl</option><option value="kubeconfig">kubeconfig</option><option value="fixture">Fixture</option></select></label>
             {draft.access_methods[0].method_type === "fixture" ? (
-              <label className="field"><span>Fixture path</span><input value={draft.access_methods[0].fixture_path ?? ""} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], fixture_path: event.target.value }] })} placeholder="lab/fixtures/example.yaml" /></label>
+              <label className="field"><span>Fixture path</span><input value={draft.access_methods[0].fixture_path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], fixture_path: event.target.value }] })} placeholder="lab/fixtures/example.yaml" /></label>
             ) : (
               <>
-                <label className="field"><span>Context</span><input value={draft.access_methods[0].context_name ?? ""} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], context_name: event.target.value }] })} placeholder="kind-local" /></label>
-                <label className="field"><span>Kubeconfig path</span><input value={draft.access_methods[0].kubeconfig_path ?? ""} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], kubeconfig_path: event.target.value }] })} placeholder="Optional" /></label>
+                <label className="field"><span>Context</span><input value={draft.access_methods[0].context_name ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], context_name: event.target.value }] })} placeholder="kind-local" /></label>
+                <label className="field"><span>Kubeconfig path</span><input value={draft.access_methods[0].kubeconfig_path ?? ""} onChange={(event: ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, access_methods: [{ ...draft.access_methods[0], kubeconfig_path: event.target.value }] })} placeholder="Optional" /></label>
               </>
             )}
             <button type="button" className="button primary full-button" disabled={!draft.environment_id || !draft.name || busy === "create"} onClick={createEnvironment}>{busy === "create" ? "Registering…" : "Register"}</button>
@@ -317,8 +318,8 @@ export function EnvironmentWorkbench() {
               <section className="panel">
                 <div className="panel-heading"><div><span className="eyebrow">Normalized resources</span><h2>Environment inventory</h2><p>Sanitized API objects projected into provider-neutral operational entities.</p></div></div>
                 <div className="inventory-toolbar">
-                  <label className="field compact-control"><span>Search</span><input value={inventorySearch} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setInventorySearch(event.target.value)} /></label>
-                  <label className="field compact-control"><span>Namespace</span><select value={inventoryNamespace} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setInventoryNamespace(event.target.value)}><option value="all">All</option>{namespaces.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                  <label className="field compact-control"><span>Search</span><input value={inventorySearch} onChange={(event: ChangeEvent<HTMLInputElement>) => setInventorySearch(event.target.value)} /></label>
+                  <label className="field compact-control"><span>Namespace</span><select value={inventoryNamespace} onChange={(event: ChangeEvent<HTMLSelectElement>) => setInventoryNamespace(event.target.value)}><option value="all">All</option>{namespaces.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
                   <Badge tone="accent">{inventory.length} visible</Badge>
                 </div>
                 <div className="inventory-table-wrap"><table className="inventory-table"><thead><tr><th>Name</th><th>Type</th><th>Namespace</th><th>Plane</th><th>Observed state</th></tr></thead><tbody>{inventory.map((entity) => <tr key={entity.entity_id}><td><strong>{entity.name}</strong><small>{entity.entity_id}</small></td><td>{entity.entity_type.replace("kubernetes.", "")}</td><td>{entity.namespace ?? "cluster"}</td><td>{entity.plane.replaceAll("_", " ")}</td><td><code>{JSON.stringify(entity.observed_state)}</code></td></tr>)}</tbody></table></div>
@@ -393,7 +394,7 @@ function HealthWorkspace({ assessments, profiles }: { assessments: OperationalPr
   if (!assessment) return <section className="panel"><div className="empty-state large">No operational profile assessment is available for this snapshot.</div></section>;
   return (
     <section className="panel">
-      <div className="panel-heading"><div><span className="eyebrow">Contract evaluation</span><h2>Operational health</h2><p>{profile?.description ?? assessment.profile_id}</p></div><label className="field compact-control"><span>Profile</span><select value={assessment.profile_id} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setSelectedProfile(event.target.value)}>{assessments.map((item) => <option key={item.profile_id} value={item.profile_id}>{item.profile_id}</option>)}</select></label></div>
+      <div className="panel-heading"><div><span className="eyebrow">Contract evaluation</span><h2>Operational health</h2><p>{profile?.description ?? assessment.profile_id}</p></div><label className="field compact-control"><span>Profile</span><select value={assessment.profile_id} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedProfile(event.target.value)}>{assessments.map((item) => <option key={item.profile_id} value={item.profile_id}>{item.profile_id}</option>)}</select></label></div>
       <div className="health-summary"><Badge tone={tone(assessment.status)}>{assessment.status}</Badge>{Object.entries(assessment.counts).map(([key, value]) => <span key={key}>{key}: <strong>{value}</strong></span>)}</div>
       <div className="health-matrix">
         {Array.from(grouped.entries()).map(([family, evaluations]) => <div className="health-family" key={family}><div className="health-family-title"><strong>{family.replaceAll("_", " ")}</strong><span>{evaluations.length} checks</span></div>{evaluations.map((evaluation) => <div className="health-cell" key={evaluation.invariant_id}><Badge tone={tone(evaluation.status)}>{evaluation.status}</Badge><span><strong>{evaluation.invariant_id}</strong><small>{evaluation.explanation}</small></span></div>)}</div>)}

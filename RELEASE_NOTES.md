@@ -1,182 +1,123 @@
-# KubeOps Release 0.5 — Extensible Provider and Component Semantics
+# KubeOps Release 1.0
 
-## Summary
+## Production-capable control plane
 
-Release 0.5 extracts Kubernetes-provider, platform-controller, and application
-behavior from the kernel into independently versioned declarative knowledge
-packs. Resolved packs contribute typed semantics to the existing discovery,
-topology, health, diagnosis, planning, policy, execution, verification, API,
-CLI, registry, and UI surfaces.
-
-The release does not introduce unrestricted plugin execution. Pack manifests
-can reference only known handler IDs and registered bounded executors. Live
-mutation remains subject to every Release 0.4 policy and approval gate.
+Release 1.0 completes the planned KubeOps roadmap. It extends the single-environment operational intelligence and guarded-recovery platform into a multi-user, multi-workspace, multi-cluster system while preserving the typed-action safety boundary introduced in Release 0.4.
 
 ## Added
 
-### Canonical pack IR
+### Tenancy and access control
 
-- `PackDependency`
-- `PackCompatibility`
-- `EntityClassifierRule`
-- `RelationshipResolverRule`
-- `RedactionRule`
-- `PackScenarioCoverage`
-- `PackContributions`
-- `KnowledgePackManifest`
-- `PackValidationIssue`
-- `PackStatus`
-- `PackResolution`
-- `PackCoverageReport`
+- Organizations and workspaces.
+- Hierarchical role grants across system, organization, workspace, environment, fleet, and operation scopes.
+- Capability-aware and object-aware API authorization.
+- Workspace-filtered data access for environments, snapshots, incidents, operations, tasks, agents, artifacts, packs, policies, schedules, fleets, audit, retention, and backups.
+- Token-authenticated UI bootstrap with explicit tenant-scope headers.
 
-`OperationalEntity` now includes `entity_type_lineage` so generic and
-specialized semantics remain simultaneously applicable.
+### Fleet intelligence
 
-### Pack manager and runtime
+- Fleet definitions, members, dependencies, failure domains, and criticality.
+- Multi-environment health assessments.
+- Common-cause and shared-factor findings.
+- Dependency-ordered operation waves with concurrency bounds.
+- Fleet artifacts, REST APIs, CLI commands, and Fleet Control UI.
 
-- Directory-based manifest discovery.
-- Deterministic dependency closure and topological ordering.
-- KubeOps and Kubernetes compatibility validation.
-- Required and optional dependency validation.
-- Conflict detection.
-- Dependency-cycle rejection.
-- Duplicate contribution validation.
-- Cross-pack contribution collision rejection.
-- Enabled-subset resolution.
-- Contribution aggregation with pack provenance.
-- Entity classification and type-lineage preservation.
-- Declarative relationship-resolution handlers.
-- Pack redaction before evidence persistence.
-- Scenario-family and invariant coverage aggregation.
+### Distributed execution
 
-### Pack SDK
+- Durable executor-agent registration and heartbeats.
+- Immutable agent-to-tenant/public-identity binding.
+- Capability, environment, executor, and capacity matching.
+- Content-idempotent execution tasks.
+- Row-locked task claims.
+- Expiring nonce-protected leases.
+- Retry/terminal handling after lease expiry.
+- Authoritative action-definition and payload-hash validation.
+- Receipt reconciliation into canonical `OperationRun` state.
+- Deployable executor management command, Compose profile, and Helm deployment.
 
-- Manifest loading.
-- Installed-root-aware validation.
-- Declarative pack scaffolding.
-- Standalone `kubeops-pack-sdk` package.
+### Governance
 
-### Built-in packs
+- Durable workspace rate and concurrency limits.
+- Tamper-evident append-only audit chains and exports.
+- Legal-hold-aware retention plans.
+- Explicit destructive-retention gate.
+- Timezone-aware maintenance windows.
+- Durable scheduled operations with delay, readiness, denial, expiry, cancellation, and materialization.
+- Scheduler that can materialize but cannot approve or execute work.
 
-- Generic Kubernetes.
-- Docker Host.
-- Kind.
-- k3s.
-- CoreDNS.
-- Ingress-NGINX.
-- Argo CD.
-- PostgreSQL.
-- Redis.
-- Django.
-- Celery.
+### Pack supply-chain trust
 
-### Runtime integration
+- HMAC-SHA256 pack signatures.
+- Ed25519 signatures and public-key verification.
+- Workspace-scoped pack trust policies.
+- Trust-aware discovery, diagnosis, lifecycle, registry, and execution catalogs.
+- Strict resolution that blocks untrusted contributions.
 
-Resolved contributions now augment:
+### Artifact and platform recovery
 
-- read-only discovery;
-- entity normalization and classification;
-- topology compilation;
-- operational-profile registries;
-- evidence-intent and collector catalogs;
-- causal-template ranking;
-- typed-action catalogs;
-- lifecycle-profile registries;
-- verification-template catalogs;
-- canonical registry introspection.
+- S3-compatible immutable artifact-store backend.
+- Helm validation preventing autoscaled API use of local artifact storage.
+- Concrete database, configuration, and artifact backup components.
+- Component and manifest hash verification.
+- Safe archive restore that rejects traversal, links, and device entries.
+- Explicit restore enablement and backup-ID confirmation.
+- Upgrade-readiness reports.
+- Scheduled platform-backup job.
 
-### Artifacts and CLI
+### Production deployment
 
-New commands:
-
-```text
-kubeops pack list
-kubeops pack show
-kubeops pack validate
-kubeops pack resolve
-kubeops pack coverage
-kubeops pack export
-```
-
-`pack export` produces an immutable resolution artifact chain.
-
-### Control plane
-
-Migration `0005_release_05_knowledge_packs.py` adds the relational
-`KnowledgePackRecord` projection.
-
-New APIs:
-
-```text
-GET  /api/v1/packs
-GET  /api/v1/packs/{pack_id}
-POST /api/v1/packs/resolve
-GET  /api/v1/packs/coverage
-```
-
-Management command:
-
-```text
-seed_release_05
-```
-
-The system registry and status endpoint now report pack contributions and pack
-coverage.
+- Nonroot Gunicorn API image.
+- Multi-stage React/Nginx UI image.
+- Production Helm chart with migration hook, API, UI, executor, scheduler, backup, ingress, services, RBAC, NetworkPolicy, PDBs, persistence, and optional HPA.
+- Secure-cookie/proxy settings and configurable HTTPS redirect/HSTS.
+- Production operations guide and architecture documentation.
+- CI migration, test, UI build, static architecture, and Helm lint/render jobs.
 
 ### UI
 
-The Packs workbench visualizes:
+- Fleet Control workbench.
+- Governance & Recovery workbench.
+- In-memory token login and tenant selection.
+- Executor status and task visibility.
+- Audit verification and retention planning.
+- Scheduled-operation visibility and controls.
+- Backup and upgrade-readiness visibility.
 
-- resolution status;
-- dependency closure;
-- compatibility constraints;
-- capabilities;
-- contribution catalogs;
-- scenario coverage;
-- validation issues;
-- manifest provenance and hashes.
+## Hardened
 
-### Fixtures and examples
+- Re-registering an agent cannot move its identity across tenants or public keys.
+- Reposting an identical task never resets terminal state.
+- Reusing a task ID with different content is rejected.
+- Lease renewal and completion reject expired leases.
+- Dispatcher decisions and governance outputs use caller-supplied time deterministically.
+- Executor heartbeats persist capacity, active tasks, and diagnostics.
+- Recovery archives reject symbolic links, hard links, and device members.
+- Restore compatibility tracks the backup's major KubeOps version.
+- `DJANGO_ALLOWED_HOSTS` strips empty and whitespace-only entries.
+- Lifecycle schedules remain unable to bypass normal approvals and execution policy.
 
-- `lab/fixtures/pack-stack-degraded.v1.yaml`
-- `environments/demo-pack-stack-fixture.v1.yaml`
+## Compatibility
 
-The fixture demonstrates generic cluster health together with specialized
-CoreDNS, ingress, GitOps, PostgreSQL, Redis, Django, and Celery semantics.
+Release 1.0 is an additive delta over Release 0.5. It preserves:
 
-## Changed
+- Release 0.1 scenario and simulator contracts.
+- Release 0.2 discovery, snapshot, topology, and health contracts.
+- Release 0.3 incident diagnosis and probe contracts.
+- Release 0.4 guarded execution and verification contracts.
+- Release 0.5 declarative pack boundaries and built-in packs.
 
-- Package and UI versions advanced to `0.5.0`.
-- Docker, Compose, bootstrap, CI, Make, and shell paths include the pack SDK and
-  pack catalog.
-- Built-in provider/component contributions use version-constrained pack
-  dependencies.
-- Component profiles evaluate workload-controller availability rather than
-  applying Pod-only predicates to controller objects.
-- Lifecycle selectors and diagnostic template matching understand entity-type
-  lineage.
-- System status advertises the pack capability boundary.
+No repository-relative paths are deleted by the Release 1.0 delta.
 
-## Preserved safety properties
+## Upgrade notes
 
-- No arbitrary Python plugin loading.
-- No unrestricted shell action contribution.
-- Pack installation does not grant execution capabilities.
-- Pack actions remain subject to execution-mode validation.
-- Pack actions remain subject to target fingerprints, policy, approval,
-  checkpoint, mutation-budget, and executor checks.
-- Evidence redaction occurs before persistence.
-- Cross-pack contribution ambiguity blocks resolution.
-- Generic semantics are preserved through specialization.
-- Live execution remains disabled by default.
+1. Apply the Release 1.0 delta over a complete Release 0.5 checkout.
+2. Install updated Python and UI dependencies.
+3. Run all Django migrations.
+4. Run `seed_release_10` after the prior seed commands.
+5. Keep live execution, destructive retention, and restore disabled.
+6. Create users/tokens and narrow role grants.
+7. Configure pack trust before enabling strict workspace trust.
+8. Configure S3-compatible artifacts before scaling API replicas.
+9. Create and verify a platform backup before enabling production mutations.
 
-## Known limitations
-
-- Packs are locally installed and unsigned in Release 0.5.
-- Handler IDs are limited to the built-in declarative resolver and collector
-  vocabulary.
-- Continuous pack hot-reload is not included; service caches must be cleared or
-  the process restarted after manifest changes.
-- Real disposable-cluster chaos validation is deferred to the next release.
-- The initial component recovery actions are deliberately bounded and do not
-  constitute universal application repair.
+See `docs/production-operations.md` for the complete operating procedure.

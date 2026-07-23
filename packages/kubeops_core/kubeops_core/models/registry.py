@@ -31,6 +31,19 @@ RegistryCategory = Literal[
     "verification_template",
     "redaction_rule",
     "pack_coverage",
+    "organization",
+    "workspace",
+    "role",
+    "fleet",
+    "executor_agent",
+    "retention_policy",
+    "pack_trust_policy",
+    "secret_provider",
+    "audit_chain",
+    "platform_backup",
+    "maintenance_window",
+    "scheduled_operation",
+    "schedule_decision",
 ]
 
 

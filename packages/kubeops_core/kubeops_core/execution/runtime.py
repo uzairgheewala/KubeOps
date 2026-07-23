@@ -121,6 +121,170 @@ class OperationRuntime:
         self.store.save(operation)
         return operation
 
+    def reconcile_external_receipts(
+        self,
+        operation: OperationRun,
+        receipts: list[ActionReceipt],
+        *,
+        current_action_ids: list[str] | None = None,
+    ) -> OperationRun:
+        """Project distributed executor receipts back into the canonical operation."""
+
+        receipt_by_id = {item.receipt_id: item for item in [*operation.action_receipts, *receipts]}
+        merged = sorted(receipt_by_id.values(), key=lambda item: (item.started_at_iso, item.receipt_id))
+        latest_by_action: dict[str, ActionReceipt] = {}
+        for receipt in merged:
+            latest_by_action[receipt.action_id] = receipt
+        current = sorted(set(current_action_ids or []))
+        actions: list[ActionInstance] = []
+        for action in operation.plan.actions:
+            receipt = latest_by_action.get(action.action_id)
+            if action.action_id in current:
+                status = "running"
+            elif receipt is None:
+                status = action.status if action.status in {"approval_required", "blocked"} else "authorized"
+            elif receipt.status in {"completed", "already_satisfied"}:
+                status = "completed"
+            elif receipt.status == "skipped":
+                status = "skipped"
+            elif receipt.status == "rolled_back":
+                status = "rolled_back"
+            else:
+                status = "failed"
+            actions.append(action.model_copy(update={"status": status}))
+
+        failed_required = [
+            action for action in actions if action.status == "failed" and not action.optional
+        ]
+        terminal_success = {"completed", "skipped", "rolled_back"}
+        all_terminal = all(action.status in terminal_success | {"failed"} for action in actions)
+        if failed_required:
+            status = "failed"
+            failure_reason = f"{len(failed_required)} distributed action(s) failed"
+        elif all_terminal:
+            status = "verifying"
+            failure_reason = None
+        else:
+            status = "running"
+            failure_reason = None
+
+        projection = {
+            "receipt_ids": [item.receipt_id for item in merged],
+            "current_action_ids": current,
+            "status": status,
+        }
+        projection_hash = hashlib.sha256(
+            json.dumps(projection, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if operation.metadata.get("external_projection_hash") == projection_hash:
+            return operation
+        now = utc_now_iso()
+        event = self._event(
+            operation.operation_id,
+            len(operation.events),
+            "operation.distributed_reconciled",
+            f"Distributed execution reconciled as {status}",
+            details={
+                "receipt_count": len(merged),
+                "current_action_ids": current,
+            },
+        )
+        updated = operation.model_copy(
+            update={
+                "status": status,
+                "plan": operation.plan.model_copy(update={"actions": actions}),
+                "action_receipts": merged,
+                "current_action_ids": current,
+                "started_at_iso": operation.started_at_iso or now,
+                "completed_at_iso": now if status == "failed" else None,
+                "failure_reason": failure_reason,
+                "updated_at_iso": now,
+                "events": [*operation.events, event],
+                "metadata": {**operation.metadata, "external_projection_hash": projection_hash},
+            }
+        )
+        self.store.save(updated)
+        return updated
+
+    def verify_external(
+        self,
+        operation: OperationRun,
+        context: RuntimeContext,
+        verification_conditions: list[VerificationCondition] | None = None,
+    ) -> OperationRun:
+        """Seal an externally executed operation against freshly observed state."""
+
+        if operation.status != "verifying":
+            raise ValueError(f"operation cannot be verified from {operation.status}")
+        conditions = (
+            verification_conditions
+            if verification_conditions is not None
+            else operation.plan.verification_conditions
+        )
+        results = (
+            self.verification.evaluate(
+                conditions,
+                context.world_provider(),
+                context.relationships_provider(),
+                at_seconds=0,
+            )
+            if conditions
+            else []
+        )
+        success = self.verification.successful(conditions, results) if conditions else True
+        protected = self.verification.protected_violation(conditions, results)
+        if protected:
+            success = False
+        live_verified = context.execution_context.mode == "live"
+        certificate_status = "recovered" if success and live_verified else (
+            "partially_recovered" if success else "recovery_failed"
+        )
+        certificate = RecoveryCertificate(
+            certificate_id=f"recovery:{operation.operation_id}:{len(operation.events)}",
+            operation_id=operation.operation_id,
+            incident_id=operation.plan.incident_id,
+            plan_id=operation.plan.plan_id,
+            status=certificate_status,  # type: ignore[arg-type]
+            restored_invariant_ids=[
+                item.condition_id for item in results if str(item.status) == "healthy"
+            ],
+            unresolved_invariant_ids=[
+                item.condition_id for item in results if str(item.status) != "healthy"
+            ],
+            action_receipt_ids=[item.receipt_id for item in operation.action_receipts],
+            verification_result_ids=[item.result_id for item in results],
+            residual_risks=([] if live_verified else ["verification did not observe a live environment"])
+            + (["verification failed"] if not success else []),
+            metadata={
+                "dry_run": operation.mode == "dry_run",
+                "simulated": not live_verified,
+                "protected_violation": protected,
+                "distributed_execution": True,
+            },
+        )
+        now = utc_now_iso()
+        final = operation.model_copy(
+            update={
+                "status": "completed" if success else "failed",
+                "verification_results": results,
+                "recovery_certificate": certificate,
+                "current_action_ids": [],
+                "completed_at_iso": now,
+                "updated_at_iso": now,
+                "events": [
+                    *operation.events,
+                    self._event(
+                        operation.operation_id,
+                        len(operation.events),
+                        "operation.sealed",
+                        f"Distributed operation sealed as {certificate.status}",
+                    ),
+                ],
+            }
+        )
+        self.store.save(final)
+        return final
+
     def add_approval(self, operation: OperationRun, approval: ApprovalRecord) -> OperationRun:
         if approval.operation_id != operation.operation_id:
             raise ValueError("approval belongs to a different operation")

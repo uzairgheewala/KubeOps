@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import { api } from "../api/client";
 import { ArtifactExplorer } from "../components/ArtifactExplorer";
 import { Badge } from "../components/Badge";
@@ -99,13 +100,13 @@ export function CompositionLab({ families }: { families: ScenarioFamily[] }) {
         <div className="composition-form">
           <label className="field">
             <span>First family</span>
-            <select value={firstId} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setFirstId(event.target.value)}>
+            <select value={firstId} onChange={(event: ChangeEvent<HTMLSelectElement>) => setFirstId(event.target.value)}>
               {families.map((family) => <option key={family.family_id} value={family.family_id}>{family.family_id}</option>)}
             </select>
           </label>
           <label className="field">
             <span>Operator</span>
-            <select value={operator} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setOperator(event.target.value as typeof operator)}>
+            <select value={operator} onChange={(event: ChangeEvent<HTMLSelectElement>) => setOperator(event.target.value as typeof operator)}>
               <option value="concurrent">Concurrent</option>
               <option value="sequential">Sequential</option>
               <option value="recovery_interference">Recovery interference</option>
@@ -113,7 +114,7 @@ export function CompositionLab({ families }: { families: ScenarioFamily[] }) {
           </label>
           <label className="field">
             <span>Second family</span>
-            <select value={secondId} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setSecondId(event.target.value)}>
+            <select value={secondId} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSecondId(event.target.value)}>
               {families.map((family) => <option key={family.family_id} value={family.family_id}>{family.family_id}</option>)}
             </select>
           </label>
@@ -147,7 +148,7 @@ export function CompositionLab({ families }: { families: ScenarioFamily[] }) {
             />
             <div className="playback">
               <button type="button" onClick={() => setSnapshotIndex(Math.max(0, snapshotIndex - 1))} disabled={snapshotIndex === 0}>← Previous</button>
-              <input type="range" min={0} max={run.snapshots.length - 1} value={snapshotIndex} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSnapshotIndex(Number(event.target.value))} />
+              <input type="range" min={0} max={run.snapshots.length - 1} value={snapshotIndex} onChange={(event: ChangeEvent<HTMLInputElement>) => setSnapshotIndex(Number(event.target.value))} />
               <span>Snapshot {snapshotIndex + 1}/{run.snapshots.length} · t+{snapshot.at_seconds}s</span>
               <button type="button" onClick={() => setSnapshotIndex(Math.min(run.snapshots.length - 1, snapshotIndex + 1))} disabled={snapshotIndex === run.snapshots.length - 1}>Next →</button>
             </div>

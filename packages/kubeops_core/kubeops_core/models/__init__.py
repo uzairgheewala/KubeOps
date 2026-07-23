@@ -82,4 +82,23 @@ from .scenario import (
     ScenarioInstance,
 )
 
+from .tenancy import (
+    AuthorizationDecision, AuthorizationRequest, OrganizationDefinition, RoleGrant, ScopeBinding, WorkspaceDefinition,
+)
+from .fleet import (
+    CommonCauseFinding, FleetAssessment, FleetDefinition, FleetDependency, FleetEnvironmentStatus,
+    FleetMember, FleetOperationPlan, FleetOperationWave,
+)
+from .executor import DispatchDecision, ExecutionTask, ExecutorAgentDefinition, ExecutorHeartbeat, TaskLease
+from .governance import (
+    AuditChainVerification, AuditEvent, AuditExport, ConcurrencyRule, GovernanceDecision,
+    RateLimitRule, RetentionCandidate, RetentionPlan, RetentionPolicy,
+)
+from .scheduling import MaintenanceWindow, ScheduledOperation, ScheduleDecision
+from .security import PackSignature, PackTrustPolicy, PackVerificationResult, SecretReference, SecretResolutionReceipt
+from .platform import (
+    BackupComponent, ControlPlaneBackupManifest, ControlPlaneRestorePlan, RestoreStep,
+    UpgradeReadinessCheck, UpgradeReadinessReport,
+)
+
 __all__ = [name for name in globals() if not name.startswith("_")]

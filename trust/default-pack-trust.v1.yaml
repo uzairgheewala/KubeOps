@@ -1,0 +1,22 @@
+schema_version: kubeops.io/v1
+policy_id: default-pack-trust.v1
+organization_id: default
+workspace_id: default
+require_signature: false
+allowed_schemes: [ed25519, hmac-sha256]
+trusted_key_ids: [release-key]
+trusted_signers: [release-bot]
+allow_unsigned_pack_ids:
+  - generic-kubernetes
+  - docker-host
+  - kind
+  - k3s
+  - coredns
+  - ingress-nginx
+  - argocd
+  - postgres
+  - redis
+  - django
+  - celery
+metadata:
+  bootstrap_policy: true

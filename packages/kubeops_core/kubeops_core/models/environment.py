@@ -40,6 +40,8 @@ class EnvironmentDefinition(SchemaModel):
     kind: ClassVar[str] = "EnvironmentDefinition"
 
     environment_id: str = Field(min_length=1)
+    organization_id: str = "default"
+    workspace_id: str = "default"
     name: str = Field(min_length=1)
     environment_class: EnvironmentClass = "development"
     provider: str = "generic"

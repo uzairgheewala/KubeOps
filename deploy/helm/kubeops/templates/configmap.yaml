@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kubeops.fullname" . }}-config
+  labels: {{- include "kubeops.labels" . | nindent 4 }}
+data:
+  DJANGO_DEBUG: {{ .Values.config.debug | quote }}
+  DJANGO_ALLOWED_HOSTS: {{ .Values.config.allowedHosts | quote }}
+  CORS_ALLOWED_ORIGINS: {{ .Values.config.corsAllowedOrigins | quote }}
+  DJANGO_SECURE_SSL_REDIRECT: {{ .Values.config.secureSslRedirect | quote }}
+  DJANGO_SECURE_HSTS_SECONDS: {{ .Values.config.secureHstsSeconds | quote }}
+  DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS: {{ .Values.config.secureHstsIncludeSubdomains | quote }}
+  DJANGO_SECURE_HSTS_PRELOAD: {{ .Values.config.secureHstsPreload | quote }}
+  KUBEOPS_DEFAULT_ORGANIZATION_ID: {{ .Values.config.defaultOrganizationId | quote }}
+  KUBEOPS_DEFAULT_WORKSPACE_ID: {{ .Values.config.defaultWorkspaceId | quote }}
+  KUBEOPS_ALLOW_ANONYMOUS_READ: {{ .Values.config.allowAnonymousRead | quote }}
+  KUBEOPS_LIVE_EXECUTION_ENABLED: {{ .Values.config.liveExecutionEnabled | quote }}
+  KUBEOPS_RETENTION_APPLY_ENABLED: {{ .Values.config.retentionApplyEnabled | quote }}
+  KUBEOPS_RESTORE_ENABLED: {{ .Values.config.restoreEnabled | quote }}
+  KUBEOPS_AUDIT_REQUIRED: {{ .Values.config.auditRequired | quote }}
+  KUBEOPS_ENABLED_PACKS: {{ .Values.config.enabledPacks | quote }}
+  KUBEOPS_PACK_TRUST_KEY_ID: {{ .Values.config.packTrustKeyId | quote }}
+  KUBEOPS_PACK_TRUST_SECRET_ENV: KUBEOPS_PACK_TRUST_SECRET
+  KUBEOPS_ARTIFACT_DIR: /workspace/artifacts
+  KUBEOPS_ARTIFACT_BACKEND: {{ .Values.config.artifactBackend | quote }}
+  KUBEOPS_ARTIFACT_S3_BUCKET: {{ .Values.config.artifactS3Bucket | quote }}
+  KUBEOPS_ARTIFACT_S3_PREFIX: {{ .Values.config.artifactS3Prefix | quote }}
+  KUBEOPS_ARTIFACT_S3_ENDPOINT: {{ .Values.config.artifactS3Endpoint | quote }}
+  KUBEOPS_ARTIFACT_S3_REGION: {{ .Values.config.artifactS3Region | quote }}
+  KUBEOPS_BACKUP_DIR: /workspace/backups
+  KUBEOPS_OPERATION_DIR: /workspace/operations

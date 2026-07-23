@@ -1,4 +1,4 @@
-"""KubeOps Release 0.5 knowledge-pack and component semantics core package."""
+"""KubeOps Release 1.0 production control-plane core package."""
 
 from .discovery import DiscoveryCollector, FixtureDiscoverySource, KubectlDiscoverySource
 from .environments import EnvironmentIntelligenceService
@@ -28,4 +28,4 @@ from .topology import TopologyCompiler
 
 __all__ = [name for name in globals() if not name.startswith("_")]
 
-__version__ = "0.5.0"
+__version__ = "1.0.0"

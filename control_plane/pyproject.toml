@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kubeops-control-plane"
-version = "0.5.0"
-description = "Django API and persistence layer for KubeOps Release 0.5"
+version = "1.0.0"
+description = "Django API and persistence layer for KubeOps Release 1.0"
 requires-python = ">=3.11"
 dependencies = [
-  "kubeops-core>=0.5.0",
-  "Django>=5.2,<5.3",
-  "djangorestframework>=3.15,<4",
-  "django-cors-headers>=4.7,<5",
+  "kubeops-core>=1.0.0,<2",
+  "Django>=5.2.16,<5.3",
+  "djangorestframework>=3.16.1,<4",
+  "django-cors-headers>=4.9,<5",
   "dj-database-url>=2.3,<3",
   "psycopg[binary]>=3.2,<4",
-  "python-dotenv>=1.0,<2",
+  "python-dotenv>=1.2,<2",
 ]
 
 [tool.setuptools.packages.find]

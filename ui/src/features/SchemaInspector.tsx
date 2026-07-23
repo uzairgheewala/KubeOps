@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import { api } from "../api/client";
 import { Badge } from "../components/Badge";
 import { JsonInspector } from "../components/JsonInspector";
@@ -51,7 +52,7 @@ export function SchemaInspector() {
           </div>
           <label className="field compact-field">
             <span>Category</span>
-            <select value={category} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setCategory(event.target.value)}>
+            <select value={category} onChange={(event: ChangeEvent<HTMLSelectElement>) => setCategory(event.target.value)}>
               {categories.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}
             </select>
           </label>
@@ -91,7 +92,7 @@ export function SchemaInspector() {
           </div>
           <label className="field compact-field">
             <span>Schema</span>
-            <select value={schemaName} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setSchemaName(event.target.value)}>
+            <select value={schemaName} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSchemaName(event.target.value)}>
               {schemaNames.map((name) => <option key={name}>{name}</option>)}
             </select>
           </label>

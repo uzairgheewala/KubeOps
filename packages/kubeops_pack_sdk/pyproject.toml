@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kubeops-pack-sdk"
-version = "0.5.0"
+version = "1.0.0"
 description = "Authoring and validation SDK for KubeOps knowledge packs"
 requires-python = ">=3.11"
-dependencies = ["kubeops-core==0.5.0", "PyYAML>=6.0,<7"]
+dependencies = ["kubeops-core==1.0.0", "PyYAML>=6.0,<7"]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -1,0 +1,15 @@
+schema_version: kubeops.io/v1
+policy_id: default-retention.v1
+organization_id: default
+scope_type: workspace
+scope_id: default
+artifact_retention_days: 90
+audit_retention_days: 365
+snapshot_retention_days: 30
+incident_retention_days: 365
+operation_retention_days: 365
+preserve_failed_operations: true
+preserve_certificates: true
+enabled: true
+metadata:
+  release: "1.0"

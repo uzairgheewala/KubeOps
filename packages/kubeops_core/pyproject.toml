@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kubeops-core"
-version = "0.5.0"
+version = "1.0.0"
 description = "Canonical operational IR and knowledge-pack runtime for KubeOps"
 requires-python = ">=3.11"
 dependencies = [

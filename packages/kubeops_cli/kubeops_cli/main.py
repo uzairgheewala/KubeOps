@@ -16,20 +16,34 @@ from kubeops_core.execution import ExecutionContext, FileOperationStore, Operati
 from kubeops_core.lifecycle import LifecyclePlanner, LifecycleProfileRegistry
 from kubeops_core.policy import ExecutionPolicyRegistry, PolicyContext
 from kubeops_core.packs import PackManager
+from kubeops_core.distributed import DistributedDispatcher
+from kubeops_core.fleet import FleetService
+from kubeops_core.governance import AuditChain, RetentionPlanner
+from kubeops_core.platform import PlatformRecoveryService
+from kubeops_core.secrets import SecretResolver
+from kubeops_core.supply_chain import PackSigner
+from kubeops_core.tenancy import AuthorizationEngine
+from kubeops_core.scheduling import SchedulingService
 from kubeops_core.util import utc_now_iso
 from kubeops_core.models.composition import ScenarioComposition
 from kubeops_core.discovery import diff_snapshots
 from kubeops_core.diagnosis import InvestigationService, ScenarioDiagnosisEvaluator, build_builtin_diagnostic_catalog
 from kubeops_core.environments import EnvironmentIntelligenceService
 from kubeops_core.health import HealthAssessmentEngine
-from kubeops_core.models import ApprovalRecord, DiagnosticExpectation, EnvironmentDefinition, EnvironmentSnapshot, IncidentInvestigation, OperationRun, RecoveryPlan
+from kubeops_core.models import (
+    ApprovalRecord, AuditEvent, AuthorizationRequest, BackupComponent, DiagnosticExpectation,
+    EnvironmentDefinition, EnvironmentSnapshot, ExecutionTask, ExecutorAgentDefinition, FleetDefinition,
+    FleetEnvironmentStatus, IncidentInvestigation, KnowledgePackManifest, OperationRun, PackSignature,
+    PackTrustPolicy, RecoveryPlan, RetentionPolicy, RoleGrant, ScopeBinding, SecretReference,
+    MaintenanceWindow, ScheduledOperation,
+)
 from kubeops_core.profiles import OperationalProfileRegistry
 from kubeops_core.models.registry import RegistryEntry
 from kubeops_core.registry import ScenarioFamilyRegistry, build_builtin_catalog
 from kubeops_core.scenarios import ScenarioCompileError, ScenarioCompiler, ScenarioComposer
 from kubeops_core.simulator import SimulationEngine
 
-app = typer.Typer(no_args_is_help=True, help="KubeOps Release 0.5 knowledge-pack, guarded recovery, diagnosis, and scenario CLI.")
+app = typer.Typer(no_args_is_help=True, help="KubeOps Release 1.0 knowledge-pack, guarded recovery, diagnosis, and scenario CLI.")
 family_app = typer.Typer(no_args_is_help=True, help="Inspect scenario families.")
 scenario_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenarios.")
 composition_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenario compositions.")
@@ -43,6 +57,14 @@ lifecycle_app = typer.Typer(no_args_is_help=True, help="Plan startup and shutdow
 policy_app = typer.Typer(no_args_is_help=True, help="Inspect execution policies and typed actions.")
 operation_app = typer.Typer(no_args_is_help=True, help="Create, approve, execute, resume, and inspect durable operations.")
 pack_app = typer.Typer(no_args_is_help=True, help="Inspect, validate, resolve, and measure knowledge packs.")
+fleet_app = typer.Typer(no_args_is_help=True, help="Assess and orchestrate multi-environment fleets.")
+access_app = typer.Typer(no_args_is_help=True, help="Evaluate hierarchical role grants and capabilities.")
+executor_app = typer.Typer(no_args_is_help=True, help="Exercise distributed executor registration and task leasing.")
+audit_app = typer.Typer(no_args_is_help=True, help="Verify and export tamper-evident audit chains.")
+retention_app = typer.Typer(no_args_is_help=True, help="Plan policy-governed data retention.")
+platform_app = typer.Typer(no_args_is_help=True, help="Build platform backup, restore, and upgrade-readiness artifacts.")
+security_app = typer.Typer(no_args_is_help=True, help="Sign and verify knowledge packs and resolve secret references.")
+schedule_app = typer.Typer(no_args_is_help=True, help="Evaluate maintenance windows and durable operation schedules.")
 app.add_typer(family_app, name="family")
 app.add_typer(scenario_app, name="scenario")
 app.add_typer(composition_app, name="composition")
@@ -56,6 +78,14 @@ app.add_typer(lifecycle_app, name="lifecycle")
 app.add_typer(policy_app, name="policy")
 app.add_typer(operation_app, name="operation")
 app.add_typer(pack_app, name="pack")
+app.add_typer(fleet_app, name="fleet")
+app.add_typer(access_app, name="access")
+app.add_typer(executor_app, name="executor")
+app.add_typer(audit_app, name="audit")
+app.add_typer(retention_app, name="retention")
+app.add_typer(platform_app, name="platform")
+app.add_typer(security_app, name="security")
+app.add_typer(schedule_app, name="schedule")
 console = Console()
 
 
@@ -77,7 +107,7 @@ def _registry() -> ScenarioFamilyRegistry:
 
 
 def _pack_manager() -> PackManager:
-    manager = PackManager(kubeops_version="0.5.0")
+    manager = PackManager(kubeops_version="1.0.0")
     manager.load_directory(_repo_root() / "packs")
     return manager
 
@@ -804,6 +834,305 @@ def export_pack_resolution(
     artifacts = build_pack_artifacts(runtime.resolution, runtime.manifests, runtime.coverage_report())
     paths = [store.put(artifact) for artifact in artifacts]
     console.print(f"[green]Exported {len(paths)} pack artifacts[/green] to {output_dir / runtime.resolution.resolution_id}")
+
+
+@schedule_app.command("evaluate")
+def evaluate_schedule(
+    schedule_path: Path,
+    windows_path: Path | None = typer.Option(None, help="YAML/JSON window list or {windows: [...]} payload."),
+    at: str | None = typer.Option(None, help="Optional ISO-8601 evaluation instant."),
+    output: Path | None = typer.Option(None),
+) -> None:
+    from datetime import datetime
+
+    schedule = _load_model(schedule_path, ScheduledOperation)
+    windows: list[MaintenanceWindow] = []
+    if windows_path:
+        payload = yaml.safe_load(windows_path.read_text(encoding="utf-8")) or []
+        if isinstance(payload, dict):
+            payload = payload.get("windows", [])
+        windows = [MaintenanceWindow.model_validate(item) for item in payload]
+    instant = datetime.fromisoformat(at.replace("Z", "+00:00")) if at else None
+    decision = SchedulingService().evaluate(schedule, windows, at=instant)
+    rendered = decision.model_dump_json(indent=2)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered, encoding="utf-8")
+    console.print_json(rendered)
+    if decision.outcome in {"deny", "expired"}:
+        raise typer.Exit(1)
+
+
+@schedule_app.command("windows")
+def inspect_maintenance_windows(windows_path: Path) -> None:
+    payload = yaml.safe_load(windows_path.read_text(encoding="utf-8")) or []
+    if isinstance(payload, dict):
+        payload = payload.get("windows", [])
+    windows = [MaintenanceWindow.model_validate(item) for item in payload]
+    table = Table(title="Maintenance windows")
+    table.add_column("Window")
+    table.add_column("Timezone")
+    table.add_column("Days")
+    table.add_column("Start")
+    table.add_column("Duration")
+    table.add_column("Enabled")
+    for window in windows:
+        table.add_row(
+            window.window_id, window.timezone, ",".join(str(item) for item in sorted(window.days_of_week)),
+            window.start_local_time, f"{window.duration_minutes}m", str(window.enabled),
+        )
+    console.print(table)
+
+
+@access_app.command("evaluate")
+def evaluate_access(
+    request_path: Path,
+    grants_path: Path,
+    bindings_path: Path | None = typer.Option(None),
+) -> None:
+    request = _load_model(request_path, AuthorizationRequest)
+    grant_payload = yaml.safe_load(grants_path.read_text(encoding="utf-8")) or []
+    grants = [RoleGrant.model_validate(item) for item in grant_payload]
+    bindings = []
+    if bindings_path:
+        bindings = [ScopeBinding.model_validate(item) for item in (yaml.safe_load(bindings_path.read_text(encoding="utf-8")) or [])]
+    decision = AuthorizationEngine(grants, bindings).evaluate(request)
+    console.print_json(decision.model_dump_json(indent=2))
+    if decision.outcome != "allow":
+        raise typer.Exit(1)
+
+
+@fleet_app.command("assess")
+def assess_fleet(
+    fleet_path: Path,
+    statuses_path: Path,
+    output: Path | None = typer.Option(None),
+) -> None:
+    fleet = _load_model(fleet_path, FleetDefinition)
+    payload = yaml.safe_load(statuses_path.read_text(encoding="utf-8")) or {}
+    statuses = [FleetEnvironmentStatus.model_validate(item) for item in payload.get("statuses", [])]
+    assessment = FleetService().assess(
+        fleet,
+        statuses,
+        incident_families=payload.get("incident_families", {}),
+        shared_factors=payload.get("shared_factors", {}),
+    )
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(assessment.model_dump_json(indent=2), encoding="utf-8")
+    table = Table(title=f"Fleet assessment: {fleet.name}")
+    table.add_column("Environment")
+    table.add_column("Status")
+    table.add_column("Incidents")
+    for item in assessment.environments:
+        table.add_row(item.environment_id, item.status, str(len(item.active_incident_ids)))
+    console.print(table)
+    console.print(f"Overall: [bold]{assessment.status}[/bold]; common causes: {len(assessment.common_causes)}")
+
+
+@fleet_app.command("plan")
+def plan_fleet(
+    fleet_path: Path,
+    operation_type: str = typer.Option("maintenance"),
+    output: Path | None = typer.Option(None),
+) -> None:
+    fleet = _load_model(fleet_path, FleetDefinition)
+    plan = FleetService().plan_operation(fleet, operation_type)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    table = Table(title=f"Fleet {operation_type} waves")
+    table.add_column("Wave")
+    table.add_column("Environments")
+    for wave in plan.waves:
+        table.add_row(str(wave.wave_index), ", ".join(wave.environment_ids))
+    console.print(table)
+    for warning in plan.warnings:
+        console.print(f"[yellow]{warning}[/yellow]")
+
+
+@executor_app.command("dispatch")
+def dispatch_task(
+    agents_path: Path,
+    task_path: Path,
+    output: Path | None = typer.Option(None),
+) -> None:
+    dispatcher = DistributedDispatcher()
+    for item in (yaml.safe_load(agents_path.read_text(encoding="utf-8")) or []):
+        dispatcher.register_agent(ExecutorAgentDefinition.model_validate(item))
+    task = _load_model(task_path, ExecutionTask)
+    dispatcher.enqueue(task)
+    decision, lease = dispatcher.dispatch(task.task_id)
+    payload = {"decision": decision.model_dump(mode="json"), "lease": lease.model_dump(mode="json") if lease else None}
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    console.print_json(json.dumps(payload))
+    if lease is None:
+        raise typer.Exit(1)
+
+
+@audit_app.command("verify")
+def verify_audit(events_path: Path) -> None:
+    payload = yaml.safe_load(events_path.read_text(encoding="utf-8")) or []
+    verification = AuditChain([AuditEvent.model_validate(item) for item in payload]).verify()
+    console.print_json(verification.model_dump_json(indent=2))
+    if not verification.valid:
+        raise typer.Exit(1)
+
+
+@audit_app.command("export")
+def export_audit(
+    events_path: Path,
+    organization_id: str,
+    workspace_id: str,
+    output: Path,
+    format: str = typer.Option("jsonl"),
+) -> None:
+    payload = yaml.safe_load(events_path.read_text(encoding="utf-8")) or []
+    chain = AuditChain([AuditEvent.model_validate(item) for item in payload])
+    export, rendered = chain.export(organization_id, workspace_id, format=format)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(rendered, encoding="utf-8")
+    console.print_json(export.model_dump_json(indent=2))
+
+
+@retention_app.command("plan")
+def plan_retention(
+    policy_path: Path,
+    inventory_path: Path,
+    output: Path | None = typer.Option(None),
+) -> None:
+    policy = _load_model(policy_path, RetentionPolicy)
+    inventory = yaml.safe_load(inventory_path.read_text(encoding="utf-8")) or []
+    plan = RetentionPlanner().plan(policy, inventory)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    console.print(f"Eligible: {len(plan.eligible_candidate_ids)}; protected: {len(plan.protected_candidate_ids)}; reclaimable: {plan.total_reclaimable_bytes} bytes")
+
+
+@security_app.command("pack-sign")
+def sign_pack(
+    pack_path: Path,
+    key_id: str,
+    signer: str,
+    secret_env: str = typer.Option("KUBEOPS_PACK_TRUST_SECRET"),
+    scheme: str = typer.Option("ed25519"),
+    output: Path = typer.Option(...),
+) -> None:
+    manifest = _load_model(pack_path, KnowledgePackManifest)
+    secret = os.getenv(secret_env)
+    if not secret:
+        raise typer.BadParameter(f"secret environment variable {secret_env!r} is not set")
+    signature = PackSigner.sign(
+        manifest, key_id=key_id, secret=secret.replace("\\n", "\n"), signer=signer, scheme=scheme
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(signature.model_dump_json(indent=2), encoding="utf-8")
+    console.print(f"[green]Signed {manifest.pack_id}@{manifest.version}[/green] with {key_id}")
+
+
+@security_app.command("pack-verify")
+def verify_pack(
+    pack_path: Path,
+    signature_path: Path | None = typer.Option(None),
+    policy_path: Path = typer.Option(...),
+    secret_env: str = typer.Option("KUBEOPS_PACK_TRUST_SECRET"),
+    public_key_env: str = typer.Option("KUBEOPS_PACK_TRUST_PUBLIC_KEY"),
+) -> None:
+    manifest = _load_model(pack_path, KnowledgePackManifest)
+    signature = _load_model(signature_path, PackSignature) if signature_path else None
+    policy = _load_model(policy_path, PackTrustPolicy)
+    key_id = next(iter(policy.trusted_key_ids), "")
+    secret = os.getenv(secret_env)
+    public_key = os.getenv(public_key_env)
+    trusted = {key_id: secret} if secret and key_id else {}
+    public = {key_id: public_key.replace("\\n", "\n")} if public_key and key_id else {}
+    result = PackSigner.verify(
+        manifest, signature, policy, trusted_secrets=trusted, trusted_public_keys=public
+    )
+    console.print_json(result.model_dump_json(indent=2))
+    if result.outcome != "trusted":
+        raise typer.Exit(1)
+
+
+@security_app.command("secret-resolve")
+def resolve_secret(
+    reference_path: Path,
+    consumer_id: str,
+) -> None:
+    reference = _load_model(reference_path, SecretReference)
+    _, receipt = SecretResolver().resolve(reference, consumer_id)
+    console.print_json(receipt.model_dump_json(indent=2))
+
+
+@platform_app.command("backup-manifest")
+def build_platform_backup(
+    organization_id: str,
+    workspace_id: str,
+    component: list[str] = typer.Option([], "--component", help="ID:TYPE:SOURCE:HASH"),
+    output: Path = typer.Option(...),
+) -> None:
+    components = []
+    for value in component:
+        parts = value.split(":", 3)
+        if len(parts) != 4:
+            raise typer.BadParameter("component must use ID:TYPE:SOURCE:HASH")
+        components.append(BackupComponent(component_id=parts[0], component_type=parts[1], source=parts[2], payload_hash=parts[3]))
+    manifest = PlatformRecoveryService().build_backup_manifest(
+        organization_id=organization_id, workspace_id=workspace_id, kubeops_version="1.0.0",
+        schema_version="0006", components=components,
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+    console.print(f"[green]Wrote unverified backup manifest {manifest.backup_id}[/green]")
+
+
+@platform_app.command("backup-verify")
+def verify_platform_backup(
+    backup_path: Path,
+    output: Path | None = typer.Option(None, help="Optional verified manifest output path."),
+) -> None:
+    from kubeops_core.models import ControlPlaneBackupManifest
+
+    manifest = _load_model(backup_path, ControlPlaneBackupManifest)
+    backup_dir = backup_path.parent
+    payloads: dict[str, Path] = {}
+    for component in manifest.components:
+        source = Path(component.source)
+        if source.is_absolute() or ".." in source.parts:
+            raise typer.BadParameter(f"unsafe component source for {component.component_id}: {component.source}")
+        candidate = (backup_dir / source).resolve()
+        if backup_dir.resolve() not in candidate.parents and candidate != backup_dir.resolve():
+            raise typer.BadParameter(f"component escapes backup directory: {component.component_id}")
+        if candidate.exists():
+            payloads[component.component_id] = candidate
+    verified = PlatformRecoveryService().verify_manifest(manifest, payloads)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(verified.model_dump_json(indent=2), encoding="utf-8")
+    console.print_json(verified.model_dump_json(indent=2))
+    if verified.status != "verified":
+        raise typer.Exit(1)
+
+
+@platform_app.command("restore-plan")
+def build_restore_plan(
+    backup_path: Path,
+    target_version: str,
+    output: Path | None = typer.Option(None),
+) -> None:
+    from kubeops_core.models import ControlPlaneBackupManifest
+
+    manifest = _load_model(backup_path, ControlPlaneBackupManifest)
+    plan = PlatformRecoveryService().restore_plan(manifest, target_version=target_version)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    console.print_json(plan.model_dump_json(indent=2))
+    if not plan.compatible:
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

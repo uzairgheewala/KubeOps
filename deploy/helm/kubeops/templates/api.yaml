@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kubeops.fullname" . }}-api
+  labels: {{- include "kubeops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: {{ include "kubeops.serviceAccountName" . }}
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: api
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: {{ include "kubeops.fullname" . }}-config } }]
+          env:
+            - { name: DJANGO_SECRET_KEY, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.djangoSecretKeyKey }} } } }
+            - { name: DATABASE_URL, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.databaseUrlKey }} } } }
+            - { name: KUBEOPS_PACK_TRUST_PUBLIC_KEY, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.packTrustPublicKeyKey }}, optional: true } } }
+            - { name: KUBEOPS_PACK_TRUST_SECRET, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.packTrustSecretKey }}, optional: true } } }
+          readinessProbe: { httpGet: { path: /api/v1/system/status, port: http }, initialDelaySeconds: 10, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /api/v1/system/status, port: http }, initialDelaySeconds: 30, periodSeconds: 20 }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: ["ALL"] }, readOnlyRootFilesystem: true }
+          resources: {{ toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            - { name: artifacts, mountPath: /workspace/artifacts }
+            - { name: backups, mountPath: /workspace/backups }
+            - { name: operations, mountPath: /workspace/operations }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: artifacts
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "kubeops.fullname" . }}-artifacts }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: backups
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "kubeops.fullname" . }}-backups }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: operations
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim: { claimName: {{ include "kubeops.fullname" . }}-operations }
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kubeops.fullname" . }}-api
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: api
+  ports: [{ name: http, port: {{ .Values.api.service.port }}, targetPort: http }]

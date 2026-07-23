@@ -13,4 +13,5 @@ python control_plane\manage.py seed_release_01
 python control_plane\manage.py seed_release_02
 python control_plane\manage.py seed_release_04
 python control_plane\manage.py seed_release_05
-Write-Host "KubeOps Release 0.5 is bootstrapped."
+python control_plane\manage.py seed_release_10
+Write-Host "KubeOps Release 1.0 is bootstrapped."

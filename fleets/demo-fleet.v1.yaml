@@ -1,0 +1,23 @@
+schema_version: kubeops.io/v1
+fleet_id: demo-local-fleet
+organization_id: default
+workspace_id: default
+name: Demo local fleet
+max_parallel_operations: 1
+members:
+  - environment_id: demo-kind-fixture
+    required_profile_ids: [cluster-observable.v1, local-development-usable.v1]
+    criticality: standard
+    failure_domain: local-docker
+  - environment_id: demo-k3s-fixture
+    required_profile_ids: [cluster-observable.v1, local-development-usable.v1]
+    criticality: standard
+    failure_domain: local-k3s
+dependencies:
+  - dependency_id: demo-kind-requires-k3s
+    source_environment_id: demo-kind-fixture
+    target_environment_id: demo-k3s-fixture
+    relationship_type: requires_for_service
+    required_profile_id: cluster-observable.v1
+labels:
+  release: "1.0"

@@ -4,12 +4,28 @@ import json
 from pathlib import Path
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.test import Client, override_settings
 
 from api.services import clear_service_caches
 
 
 pytestmark = pytest.mark.integration
+
+
+def _authenticated_client() -> Client:
+    user_model = get_user_model()
+    user, _ = user_model.objects.get_or_create(
+        username="integration-admin",
+        defaults={"is_staff": True, "is_superuser": True},
+    )
+    if not user.is_superuser:
+        user.is_staff = True
+        user.is_superuser = True
+        user.save(update_fields=["is_staff", "is_superuser"])
+    client = Client()
+    client.force_login(user)
+    return client
 
 
 @pytest.fixture(autouse=True)
@@ -31,12 +47,12 @@ def configure_paths(repo_root: Path, tmp_path: Path):
 
 
 def test_status_profiles_and_family_endpoints(db) -> None:
-    client = Client()
+    client = _authenticated_client()
     status_response = client.get("/api/v1/system/status")
     assert status_response.status_code == 200
     status_payload = status_response.json()
-    assert status_payload["mode"] == "guarded_lifecycle_recovery"
-    assert status_payload["release"] == "0.5.0"
+    assert status_payload["mode"] == "production_control_plane"
+    assert status_payload["release"] == "1.0.0"
     assert status_payload["profile_count"] >= 2
     assert "immutable_snapshots" in status_payload["capabilities"]
     assert "probe_planning" in status_payload["capabilities"]
@@ -78,7 +94,7 @@ def test_status_profiles_and_family_endpoints(db) -> None:
 
 
 def test_fixture_environment_snapshot_health_diff_and_export(db, repo_root: Path) -> None:
-    client = Client()
+    client = _authenticated_client()
     fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
     environment = {
         "environment_id": "integration-kind",
@@ -183,7 +199,7 @@ def test_fixture_environment_snapshot_health_diff_and_export(db, repo_root: Path
 
 
 def test_compile_and_run_persist_artifacts(db) -> None:
-    client = Client()
+    client = _authenticated_client()
     payload = {
         "family_id": "dependency.authentication_failure.v1",
         "bindings": {"consumer_name": "Builder", "provider_name": "Kubernetes API"},
@@ -230,7 +246,7 @@ def test_compile_and_run_persist_artifacts(db) -> None:
 
 
 def test_composition_and_artifact_endpoints(db) -> None:
-    client = Client()
+    client = _authenticated_client()
     payload = {
         "schema_version": "kubeops.io/v1",
         "composition_id": "api-composition",
@@ -265,7 +281,7 @@ def test_composition_and_artifact_endpoints(db) -> None:
 
 
 def test_lifecycle_plan_approval_dry_run_and_certificate(db, repo_root: Path) -> None:
-    client = Client()
+    client = _authenticated_client()
     fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
     environment = {
         "environment_id": "operation-kind", "name": "Operation Kind", "environment_class": "development",
@@ -347,7 +363,7 @@ def test_lifecycle_plan_approval_dry_run_and_certificate(db, repo_root: Path) ->
 
 
 def test_live_execution_is_disabled_by_default(db, repo_root: Path) -> None:
-    client = Client()
+    client = _authenticated_client()
     fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
     environment = {
         "environment_id": "live-disabled", "name": "Live Disabled", "environment_class": "development",
@@ -378,7 +394,7 @@ def test_release_05_pack_endpoints_and_seeder(db) -> None:
     from django.core.management import call_command
     from api.models import KnowledgePackRecord
 
-    client = Client()
+    client = _authenticated_client()
     response = client.get("/api/v1/packs")
     assert response.status_code == 200
     payload = response.json()
@@ -402,3 +418,191 @@ def test_release_05_pack_endpoints_and_seeder(db) -> None:
     call_command("seed_release_05", verbosity=0)
     assert KnowledgePackRecord.objects.count() == 11
     assert KnowledgePackRecord.objects.filter(pack_id="kind", state="active", enabled=True).exists()
+
+
+
+def test_release_10_tenant_scoping_and_governance_endpoints(db, repo_root: Path) -> None:
+    from django.core.management import call_command
+    from django.utils import timezone
+    from api.models import OrganizationRecord, RoleGrantRecord, WorkspaceRecord
+    from kubeops_core.models import RoleGrant
+
+    call_command("seed_release_10", verbosity=0)
+    organization = OrganizationRecord.objects.create(
+        organization_id="tenant-b", name="Tenant B", slug="tenant-b", payload={"organization_id": "tenant-b", "name": "Tenant B", "slug": "tenant-b"}
+    )
+    workspace = WorkspaceRecord.objects.create(
+        workspace_id="tenant-b-main", organization=organization, name="Tenant B main", slug="main",
+        payload={"workspace_id": "tenant-b-main", "organization_id": "tenant-b", "name": "Tenant B main", "slug": "main"},
+    )
+    user_model = get_user_model()
+    user = user_model.objects.create_user(username="tenant-b-admin", password="irrelevant")
+    grant = RoleGrant(
+        grant_id="tenant-b-admin-grant", principal_id=str(user.pk), role="admin",
+        scope_type="workspace", scope_id=workspace.workspace_id,
+        granted_by="integration", granted_at_iso=timezone.now().isoformat(),
+    )
+    RoleGrantRecord.objects.create(
+        grant_id=grant.grant_id, principal_id=grant.principal_id, role=grant.role,
+        scope_type=grant.scope_type, scope_id=grant.scope_id, active=True,
+        payload=grant.model_dump(mode="json"), granted_at=timezone.now(),
+    )
+    client = Client()
+    client.force_login(user)
+    headers = {"HTTP_X_KUBEOPS_ORGANIZATION": "tenant-b", "HTTP_X_KUBEOPS_WORKSPACE": "tenant-b-main"}
+    fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
+    environment = {
+        "environment_id": "tenant-b-kind", "organization_id": "tenant-b", "workspace_id": "tenant-b-main",
+        "name": "Tenant B Kind", "environment_class": "development", "provider": "fixture", "cluster_provider": "kind",
+        "access_methods": [{"method_id": "fixture", "method_type": "fixture", "fixture_path": str(fixture_path)}],
+        "default_access_method_id": "fixture",
+    }
+    created = client.post("/api/v1/environments", data=environment, content_type="application/json", **headers)
+    assert created.status_code == 201
+    listed = client.get("/api/v1/environments", **headers)
+    assert listed.status_code == 200
+    assert {item["environment_id"] for item in listed.json()} == {"tenant-b-kind"}
+    forbidden = client.get("/api/v1/environments/demo-kind-fixture", **headers)
+    assert forbidden.status_code == 403
+    mismatched = client.post(
+        "/api/v1/environments",
+        data={**environment, "environment_id": "cross-scope", "organization_id": "default", "workspace_id": "default"},
+        content_type="application/json", **headers,
+    )
+    assert mismatched.status_code == 403
+
+    identity = client.get("/api/v1/auth/me", **headers)
+    assert identity.status_code == 200
+    assert identity.json()["workspace_id"] == "tenant-b-main"
+    audit = client.get("/api/v1/audit/verify", **headers)
+    assert audit.status_code == 200
+
+
+def test_release_10_distributed_simulation_reconciles_operation(db, repo_root: Path) -> None:
+    from django.core.management import call_command
+
+    call_command("seed_release_10", verbosity=0)
+    client = _authenticated_client()
+    fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
+    environment = {
+        "environment_id": "distributed-kind", "name": "Distributed Kind", "environment_class": "development",
+        "provider": "fixture", "cluster_provider": "kind",
+        "access_methods": [{"method_id": "fixture", "method_type": "fixture", "fixture_path": str(fixture_path)}],
+        "default_access_method_id": "fixture", "operational_profile_ids": ["local-development-usable.v1"],
+    }
+    assert client.post("/api/v1/environments", data=environment, content_type="application/json").status_code == 201
+    snapshot = client.post("/api/v1/environments/distributed-kind/snapshots", data={}, content_type="application/json").json()
+    operation = client.post(
+        "/api/v1/operations",
+        data={"snapshot_id": snapshot["snapshot_id"], "lifecycle_profile_id": "local-development-startup.v1", "mode": "guarded_execution"},
+        content_type="application/json",
+    ).json()
+    operation_id = operation["operation_id"]
+    client.post(
+        f"/api/v1/operations/{operation_id}/approvals",
+        data={"approver_id": "integration-admin", "decision": "approve"}, content_type="application/json",
+    )
+    dispatched = client.post(
+        f"/api/v1/operations/{operation_id}/dispatch",
+        data={"execution_mode": "simulation"}, content_type="application/json",
+    )
+    assert dispatched.status_code == 201
+    dispatched_tasks = dispatched.json()["execution_tasks"]
+    assert dispatched_tasks
+
+    missing_agent = client.post(
+        f"/api/v1/execution-tasks/{dispatched_tasks[0]['task_id']}/claim",
+        data={}, content_type="application/json",
+    )
+    assert missing_agent.status_code == 422
+
+    idempotent_create = client.post(
+        "/api/v1/execution-tasks", data=dispatched_tasks[0], content_type="application/json",
+    )
+    assert idempotent_create.status_code == 200
+    assert idempotent_create.json()["task_id"] == dispatched_tasks[0]["task_id"]
+
+    # The real agent management command leases and executes one dependency-ready task per pass.
+    for _ in range(4):
+        call_command(
+            "run_executor_agent", "--once", "--agent-id", "local-executor",
+            "--organization-id", "default", "--workspace-id", "default",
+            "--capabilities", "executor.claim,executor.complete,observe,simulation,fixture",
+            "--executors", "dry_run,simulation,builtin.wait",
+            verbosity=0,
+        )
+    terminal_repost = client.post(
+        "/api/v1/execution-tasks", data=dispatched_tasks[0], content_type="application/json",
+    )
+    assert terminal_repost.status_code == 200
+    assert terminal_repost.json()["status"] in {"completed", "failed", "cancelled"}
+
+    detail = client.get(f"/api/v1/operations/{operation_id}")
+    assert detail.status_code == 200
+    assert detail.json()["status"] in {"verifying", "completed"}
+    if detail.json()["status"] == "verifying":
+        verified = client.post(
+            f"/api/v1/operations/{operation_id}/verify-live",
+            data={}, content_type="application/json",
+        )
+        assert verified.status_code == 201
+        assert verified.json()["recovery_certificate"]["status"] == "partially_recovered"
+
+
+def test_release_10_schedule_materializes_but_does_not_execute(db, repo_root: Path) -> None:
+    from django.core.management import call_command
+    from django.utils import timezone
+    from api.models import MaintenanceWindowRecord, OperationRecord, OrganizationRecord, WorkspaceRecord
+    from kubeops_core.models import MaintenanceWindow
+
+    call_command("seed_release_10", verbosity=0)
+    client = _authenticated_client()
+    fixture_path = repo_root / "lab" / "fixtures" / "kind-demo-degraded.v1.yaml"
+    environment = {
+        "environment_id": "scheduled-kind", "name": "Scheduled Kind", "environment_class": "development",
+        "provider": "fixture", "cluster_provider": "kind",
+        "access_methods": [{"method_id": "fixture", "method_type": "fixture", "fixture_path": str(fixture_path)}],
+        "default_access_method_id": "fixture", "operational_profile_ids": ["local-development-usable.v1"],
+    }
+    assert client.post("/api/v1/environments", data=environment, content_type="application/json").status_code == 201
+    snapshot = client.post("/api/v1/environments/scheduled-kind/snapshots", data={}, content_type="application/json")
+    assert snapshot.status_code == 201
+
+    now = timezone.now()
+    window = MaintenanceWindow(
+        window_id="integration-window", organization_id="default", workspace_id="default",
+        name="Integration window", timezone="UTC", days_of_week=set(range(7)),
+        start_local_time="00:00", duration_minutes=1440,
+        allowed_operation_types={"startup"}, enabled=True,
+    )
+    MaintenanceWindowRecord.objects.update_or_create(
+        window_id=window.window_id,
+        defaults={
+            "organization": OrganizationRecord.objects.get(organization_id="default"),
+            "workspace": WorkspaceRecord.objects.get(workspace_id="default"),
+            "enabled": True, "payload": window.model_dump(mode="json"),
+        },
+    )
+    response = client.post(
+        "/api/v1/scheduled-operations",
+        data={
+            "target_type": "environment", "target_id": "scheduled-kind", "operation_type": "startup",
+            "lifecycle_profile_id": "local-development-startup.v1", "execution_mode": "dry_run",
+            "maintenance_window_id": "integration-window", "materialize_automatically": False,
+            "not_before_iso": (now - timezone.timedelta(minutes=1)).isoformat(),
+            "deadline_iso": (now + timezone.timedelta(hours=1)).isoformat(),
+        },
+        content_type="application/json",
+    )
+    assert response.status_code == 201
+    assert response.json()["status"] == "ready"
+    schedule_id = response.json()["schedule_id"]
+
+    materialized = client.post(
+        f"/api/v1/scheduled-operations/{schedule_id}/materialize", data={}, content_type="application/json"
+    )
+    assert materialized.status_code == 201
+    operation_id = materialized.json()["schedule"]["operation_id"]
+    operation = OperationRecord.objects.get(operation_id=operation_id)
+    assert operation.status == "created"
+    assert operation.receipts.count() == 0

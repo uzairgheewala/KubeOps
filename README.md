@@ -1,316 +1,155 @@
-# KubeOps Release 0.5
+# KubeOps 1.0
 
-KubeOps is a typed, evidence-driven Kubernetes operations runtime. Release 0.5
-moves provider and component knowledge out of the operational kernel and into
-independently versioned, declarative **knowledge packs**.
+KubeOps is a typed, evidence-driven Kubernetes operations platform for environment discovery, health evaluation, incident diagnosis, lifecycle planning, guarded recovery, scenario simulation, fleet coordination, and operational learning.
 
-The same Release 0.1–0.4 kernel now discovers, classifies, relates, evaluates,
-diagnoses, plans, authorizes, executes, and verifies provider-specific and
-component-specific behavior through resolved pack contributions. A pack cannot
-run arbitrary Python or shell code: it contributes only canonical typed objects
-and references to pre-registered handlers and bounded executors.
+It is not a wrapper that lets an AI run arbitrary `kubectl` commands. KubeOps models environments as temporal dependency graphs, evaluates explicit invariants, preserves evidence and causal provenance, compiles recovery into registered typed actions, applies independent safety policy and approvals, executes through bounded adapters, and seals recovery only after semantic verification.
 
-Release 0.5 keeps all Release 0.4 mutation protections. Live execution remains
-disabled by default, and installing a pack does not grant its required
-capabilities or authorize its actions.
+## Release 1.0 capabilities
 
-## Release 0.5 capabilities
+Release 1.0 consolidates the complete roadmap:
 
-### Declarative pack contract
+- Canonical versioned operational IR and deterministic simulator.
+- Generic scenario families and composition operators.
+- Read-only Kubernetes discovery, sanitized snapshots, topology, and health profiles.
+- Evidence-intent collection, hypotheses, probes, causal graphs, and diagnosis certificates.
+- Dependency-aware startup/shutdown planning.
+- Typed actions, risk policy, approvals, checkpoints, rollback, and recovery certificates.
+- Declarative provider/component knowledge packs.
+- Organizations, workspaces, hierarchical RBAC, and object-aware tenant isolation.
+- Multi-cluster fleets, common-cause analysis, and dependency-ordered operation waves.
+- Capability- and capacity-scoped distributed executors with durable leases and receipts.
+- Workspace rate/concurrency limits, tamper-evident audit, legal holds, and retention.
+- Maintenance windows and durable operation scheduling.
+- HMAC and Ed25519 pack signing with workspace trust policy.
+- File and S3-compatible immutable artifact stores.
+- Verifiable platform backup/restore and upgrade-readiness checks.
+- Production API/UI containers and Helm deployment.
+- Interactive Scenario, Environment, Incident, Operations, Pack, Fleet, and Governance workbenches.
 
-Each `pack.yaml` declares:
+## Safety boundary
 
-- identity, semantic version, priority, and pack kind;
-- KubeOps, Kubernetes, Python, provider, OS, and architecture compatibility;
-- required and optional pack dependencies;
-- explicit conflicts;
-- entity classifiers;
-- topology relationship resolvers;
-- operational health profiles;
-- evidence intents and collectors;
-- causal templates;
-- typed actions;
-- lifecycle profiles;
-- verification templates;
-- redaction rules;
-- scenario-family coverage claims.
-
-The manifest uses the canonical immutable IR, rejects unknown fields, and has a
-deterministic content hash.
-
-### Pack resolution and linting
-
-The pack manager performs:
-
-- dependency closure;
-- deterministic topological ordering;
-- compatibility checks;
-- missing-dependency detection;
-- dependency-cycle rejection;
-- conflict detection;
-- duplicate contribution detection within a pack;
-- cross-pack contribution-ID collision rejection;
-- active, blocked, incompatible, and disabled status projection;
-- contribution and semantic-coverage aggregation.
-
-A pack set must resolve successfully before any contribution enters a runtime
-registry.
-
-### Type specialization without semantic loss
-
-An entity now carries `entity_type_lineage`. A Kind control-plane node can be
-specialized as:
+Every environment mutation follows one authority path:
 
 ```text
-provider.kind.control_plane
+scope → authorization → governance → typed plan → policy → approval
+      → durable operation → bounded executor → receipt → fresh verification
 ```
 
-while retaining:
+Schedules may materialize work but cannot approve or execute it. Fleet plans cannot bypass environment policy. Knowledge-pack signatures establish semantic trust but grant no executor capability. Live execution, destructive retention, and restore are disabled by default.
+
+## Repository layout
 
 ```text
-kubernetes.node
+packages/kubeops_core/       framework-independent models and runtime
+packages/kubeops_cli/        Typer/Rich command-line interface
+packages/kubeops_pack_sdk/   declarative pack authoring and validation
+control_plane/               Django/DRF persistence and production API
+ui/                          React/TypeScript operational workbench
+packs/                       built-in provider and component packs
+scenarios/                    generic families, basis, and compositions
+profiles/                     operational health profiles
+lifecycle/                    startup and shutdown profiles
+policies/                     guarded execution policies
+governance/                   limits, retention, and maintenance windows
+fleets/                       fleet definitions
+deploy/helm/kubeops/          production Helm chart
+lab/                          fixtures and scenario laboratory assets
+tests/                        unit, property, integration, and scenario tests
 ```
 
-Generic health profiles and topology rules continue to apply, while Kind-aware
-profiles, probes, actions, and causal templates gain additional precision.
-Specialization refines the common model instead of replacing it.
+## Development quick start
 
-### Runtime integration
-
-Resolved pack contributions are consumed by existing Release 0.1–0.4 surfaces:
-
-```text
-read-only resource collection
-  → pack redaction
-  → generic normalization
-  → entity classification
-  → generic + pack topology resolution
-  → generic + pack health profiles
-  → generic + pack diagnostic catalog
-  → generic + pack lifecycle/action catalogs
-  → policy-governed execution
-  → pack verification templates
-```
-
-No parallel provider-specific orchestration runtime was introduced.
-
-### Initial pack set
-
-Release 0.5 includes 11 packs:
-
-| Pack | Kind | Primary contribution |
-|---|---|---|
-| `generic-kubernetes` | core | Generic resource semantics and credential redaction |
-| `docker-host` | provider | Docker runtime/container lifecycle |
-| `kind` | provider | Kind control-plane diagnosis and lifecycle |
-| `k3s` | provider | k3s service diagnosis and maintenance |
-| `coredns` | platform | DNS health and bounded rollout recovery |
-| `ingress-nginx` | platform | Ingress-controller health and recovery |
-| `argocd` | platform | GitOps ownership, health, evidence, and refresh |
-| `postgres` | application | PostgreSQL readiness, diagnosis, and guarded recovery |
-| `redis` | application | Redis readiness, diagnosis, and guarded recovery |
-| `django` | application | Django service dependencies, health, and recovery |
-| `celery` | application | Worker dependencies, health, and recovery |
-
-The resolved catalog contributes 11 classifiers, 3 relationship resolvers,
-7 operational profiles, 9 evidence intents, 9 collectors, 9 causal templates,
-12 action types, 2 lifecycle profiles, 3 verification templates, 1 redaction
-rule, and 11 scenario-coverage declarations.
-
-### Pack SDK
-
-`kubeops-pack-sdk` provides:
-
-- manifest loading;
-- manifest validation against an installed pack root;
-- new-pack scaffolding;
-- canonical model exports for pack authors.
-
-The SDK deliberately does not expose an arbitrary plugin execution hook.
-
-### Pack workbench
-
-The React UI adds a **Packs** workspace with:
-
-- active and blocked pack status;
-- dependency and compatibility inspection;
-- contribution counts and canonical payloads;
-- capability and supported-entity summaries;
-- validation issues;
-- scenario-family and invariant coverage;
-- manifest hash and raw canonical manifest.
-
-### Immutable pack artifacts
-
-The CLI can export a resolved pack set as a content-addressed artifact chain:
-
-- one artifact per manifest;
-- pack resolution;
-- contribution catalog;
-- coverage report;
-- aggregate resolution manifest.
-
-## Repository additions
-
-```text
-packages/kubeops_core/kubeops_core/packs/
-  manager.py       dependency and compatibility resolution
-  runtime.py       contribution aggregation and runtime interpretation
-  versioning.py    constrained semantic-version checks
-
-packages/kubeops_pack_sdk/
-  authoring and validation SDK
-
-packs/
-  generic-kubernetes/
-  docker-host/
-  kind/
-  k3s/
-  coredns/
-  ingress-nginx/
-  argocd/
-  postgres/
-  redis/
-  django/
-  celery/
-
-ui/src/features/packs/
-  Pack Workbench
-```
-
-## Applying this delta
-
-The Release 0.5 archive contains only files added or modified since Release
-0.4. Extract it over a complete Release 0.4 repository while preserving paths.
-
-```bash
-unzip kubeops-release-0.5-delta.zip -d /path/to/kubeops
-cd /path/to/kubeops
-```
-
-Run migrations and seed the pack projection:
-
-```bash
-python control_plane/manage.py migrate
-python control_plane/manage.py seed_release_05
-```
-
-The bootstrap and Docker Compose paths perform both steps automatically.
-
-## Local bootstrap
-
-### Linux/macOS
-
-```bash
-./scripts/bootstrap.sh
-./scripts/dev.sh
-```
-
-### Windows PowerShell
+### PowerShell with Docker Compose
 
 ```powershell
-.\scripts\bootstrap.ps1
-.\scripts\dev.ps1
+Copy-Item .env.example .env
+
+docker compose up --build postgres api ui
 ```
 
-### Docker Compose
+Open:
 
-```bash
-docker compose up --build
+- UI: `http://localhost:5173`
+- API status: `http://localhost:8000/api/v1/system/status`
+
+Optional services:
+
+```powershell
+docker compose --profile scheduler --profile executor up --build
 ```
 
-The UI is served at `http://localhost:5173`; the API is served at
-`http://localhost:8000/api/v1`.
+The development executor is restricted to dry-run, simulation, and wait adapters.
 
-## Pack configuration
+### Python environment
 
-```text
-KUBEOPS_PACK_DIR=./packs
-KUBEOPS_ENABLED_PACKS=
+```powershell
+conda create -n kubeops python=3.13 -y
+conda activate kubeops
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+
+$env:PYTHONPATH = "packages/kubeops_core;packages/kubeops_pack_sdk;packages/kubeops_cli;control_plane"
+python control_plane/manage.py migrate
+python control_plane/manage.py seed_release_01
+python control_plane/manage.py seed_release_02
+python control_plane/manage.py seed_release_04
+python control_plane/manage.py seed_release_05
+python control_plane/manage.py seed_release_10
+python control_plane/manage.py runserver
 ```
 
-An empty `KUBEOPS_ENABLED_PACKS` value activates every successfully resolved
-installed pack. A comma-separated value selects a subset and its required
-dependency closure.
+In a second PowerShell window:
 
-Pack enablement does not change the Release 0.4 live authority gate:
-
-```text
-KUBEOPS_LIVE_EXECUTION_ENABLED=0
+```powershell
+cd ui
+npm install
+npm run dev
 ```
 
 ## CLI examples
 
-Inspect and validate the pack set:
-
-```bash
-kubeops pack list
-kubeops pack validate
-kubeops pack show kind
+```powershell
+python -m kubeops_cli.main pack validate
+python -m kubeops_cli.main environment validate environments/demo-pack-stack-fixture.v1.yaml
+python -m kubeops_cli.main snapshot collect environments/demo-pack-stack-fixture.v1.yaml --output-dir artifacts
+python -m kubeops_cli.main fleet assess fleets/demo-fleet.v1.yaml
+python -m kubeops_cli.main schedule windows governance/default-maintenance-windows.v1.yaml
+python -m kubeops_cli.main platform --help
 ```
 
-Resolve only Kind and its dependencies:
+Use `python -m kubeops_cli.main --help` to inspect the complete command tree.
 
-```bash
-kubeops pack resolve kind
+## Validation
+
+The repository includes:
+
+- Unit and property-based tests for the operational kernel.
+- Django/PostgreSQL integration tests.
+- Scenario and pack-resolution matrices.
+- TypeScript project build.
+- Static Release 1.0 architecture validator.
+- Helm lint and render checks in CI.
+- Overlay and per-file hash verification for release deltas.
+
+Run locally:
+
+```powershell
+pytest
+python scripts/validate_release_10.py
+cd ui
+npm run build
 ```
 
-Inspect scenario coverage:
+## Production deployment
 
-```bash
-kubeops pack coverage
-```
+See:
 
-Export immutable resolution artifacts:
+- [`docs/production-operations.md`](docs/production-operations.md)
+- [`docs/architecture-release-10.md`](docs/architecture-release-10.md)
+- [`deploy/production/README.md`](deploy/production/README.md)
 
-```bash
-kubeops pack export --pack kind --output-dir artifacts
-```
+The chart defaults to one API replica with local artifact storage. Configure S3-compatible object storage before horizontally scaling API replicas.
 
-Exercise the pack-aware fixture:
+## Architecture history
 
-```bash
-kubeops snapshot collect environments/demo-pack-stack-fixture.v1.yaml \
-  --output /tmp/pack-stack-snapshot.json
-```
-
-## API additions
-
-```text
-GET  /api/v1/packs
-GET  /api/v1/packs/{pack_id}
-POST /api/v1/packs/resolve
-GET  /api/v1/packs/coverage
-```
-
-The existing registry, profile, diagnostic, action, lifecycle, environment,
-incident, and operation APIs now include resolved pack contributions.
-
-## Testing
-
-```bash
-make test-python
-make test-ui
-```
-
-The Release 0.5 suite covers resolution, dependency closure, compatibility,
-cycles, contribution collisions, classification, type lineage, relationship
-resolution, redaction, catalog merging, pack-aware diagnosis, health,
-lifecycle planning, artifact export, SDK authoring, API projections, and all
-retained Release 0.1–0.4 behavior.
-
-## Documentation
-
-- [Release 0.5 architecture](docs/architecture-release-05.md)
-- [Declarative pack boundary ADR](docs/adr/0005-declarative-knowledge-pack-boundary.md)
-- [Pack authoring guide](docs/pack-authoring.md)
-- [Built-in pack catalog](packs/README.md)
-- [Release notes](RELEASE_NOTES.md)
-- [Implementation manifest](IMPLEMENTATION_MANIFEST.md)
-- [Validation record](VALIDATION.md)
-
-## Next boundary
-
-The next release can use these pack contracts to add disposable-cluster fault
-injection, systematic live scenario validation, semantic support coverage, and
-incident-to-pack knowledge promotion without modifying the operational kernel.
+Each release architecture remains documented under `docs/architecture-release-*.md`, with corresponding decisions under `docs/adr/`.

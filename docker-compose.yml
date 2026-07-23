@@ -37,6 +37,7 @@ services:
              python control_plane/manage.py seed_release_02 &&
              python control_plane/manage.py seed_release_04 &&
              python control_plane/manage.py seed_release_05 &&
+             python control_plane/manage.py seed_release_10 &&
              python control_plane/manage.py runserver 0.0.0.0:8000"
     ports:
       - "8000:8000"
@@ -47,10 +48,58 @@ services:
       - ./artifacts:/workspace/artifacts
       - ./operations:/workspace/operations
 
+  executor:
+    build:
+      context: .
+      dockerfile: control_plane/Dockerfile
+    environment:
+      DJANGO_SECRET_KEY: development-only-change-me
+      DJANGO_DEBUG: "1"
+      DATABASE_URL: postgresql://kubeops:kubeops@postgres:5432/kubeops
+      KUBEOPS_ARTIFACT_DIR: /workspace/artifacts
+      KUBEOPS_OPERATION_DIR: /workspace/operations
+      KUBEOPS_LIVE_EXECUTION_ENABLED: "0"
+      KUBEOPS_EXECUTOR_AGENT_ID: compose-executor
+      KUBEOPS_EXECUTOR_AGENT_NAME: Compose dry-run executor
+      KUBEOPS_EXECUTOR_CAPABILITIES: executor.claim,executor.complete,observe,simulation,fixture
+      KUBEOPS_EXECUTOR_IDS: dry_run,simulation,builtin.wait
+      KUBEOPS_EXECUTOR_MAX_CONCURRENCY: "2"
+    command: python control_plane/manage.py run_executor_agent
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    volumes:
+      - ./artifacts:/workspace/artifacts
+      - ./operations:/workspace/operations
+    profiles: ["executor"]
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: control_plane/Dockerfile
+    environment:
+      DJANGO_SECRET_KEY: development-only-change-me
+      DJANGO_DEBUG: "1"
+      DATABASE_URL: postgresql://kubeops:kubeops@postgres:5432/kubeops
+      KUBEOPS_ARTIFACT_DIR: /workspace/artifacts
+      KUBEOPS_OPERATION_DIR: /workspace/operations
+      KUBEOPS_LIVE_EXECUTION_ENABLED: "0"
+    command: python control_plane/manage.py run_operation_scheduler --poll-seconds 15
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./artifacts:/workspace/artifacts
+      - ./operations:/workspace/operations
+    profiles: ["scheduler"]
+
   ui:
     build:
       context: ./ui
       dockerfile: Dockerfile
+      target: development
     environment:
       VITE_API_BASE_URL: http://localhost:8000/api/v1
     ports:

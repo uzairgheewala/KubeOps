@@ -12,6 +12,8 @@ from kubeops_core.models.pack import (
     PackStatus,
     PackValidationIssue,
 )
+from kubeops_core.models.security import PackSignature, PackTrustPolicy, PackVerificationResult
+from kubeops_core.supply_chain.signing import PackSigner
 from kubeops_core.util import utc_now_iso
 
 from .runtime import PackRuntime
@@ -19,7 +21,7 @@ from .versioning import satisfies
 
 
 class PackManager:
-    def __init__(self, *, kubeops_version: str = "0.5.0", kubernetes_version: str | None = None) -> None:
+    def __init__(self, *, kubeops_version: str = "1.0.0", kubernetes_version: str | None = None) -> None:
         self.kubeops_version = kubeops_version
         self.kubernetes_version = kubernetes_version
         self._manifests: dict[str, KnowledgePackManifest] = {}
@@ -136,7 +138,15 @@ class PackManager:
                 )
         return issues
 
-    def resolve(self, requested_pack_ids: list[str] | None = None) -> PackResolution:
+    def resolve(
+        self,
+        requested_pack_ids: list[str] | None = None,
+        *,
+        trust_policy: PackTrustPolicy | None = None,
+        signatures: dict[str, PackSignature] | None = None,
+        trusted_secrets: dict[str, str] | None = None,
+        trusted_public_keys: dict[str, str] | None = None,
+    ) -> PackResolution:
         requested = list(requested_pack_ids or sorted(self._manifests))
         unknown = sorted(set(requested) - set(self._manifests))
         if unknown:
@@ -165,7 +175,7 @@ class PackManager:
             if not ready:
                 cycle = sorted(remaining)
                 issue = PackValidationIssue(code="dependency_cycle", severity="error", message=f"pack dependency cycle: {cycle}")
-                return self._resolution(requested, ordered, [], cycle, [issue])
+                return self._resolution(requested, ordered, [], cycle, [issue], {})
             for pack_id in ready:
                 ordered.append(pack_id)
                 remaining.pop(pack_id)
@@ -173,11 +183,30 @@ class PackManager:
                     values.discard(pack_id)
 
         issues: list[PackValidationIssue] = []
+        trust_results: dict[str, PackVerificationResult] = {}
+        if trust_policy is not None:
+            signatures = signatures or {}
+            trusted_secrets = trusted_secrets or {}
+            trusted_public_keys = trusted_public_keys or {}
+            for pack_id in closure:
+                result = PackSigner.verify(
+                    self.get(pack_id), signatures.get(pack_id), trust_policy,
+                    trusted_secrets=trusted_secrets, trusted_public_keys=trusted_public_keys,
+                )
+                trust_results[pack_id] = result
+                if result.outcome != "trusted":
+                    issues.append(PackValidationIssue(
+                        code="pack_untrusted", severity="error",
+                        message=f"pack trust verification returned {result.outcome}: {result.reasons}",
+                        pack_id=pack_id, details=result.model_dump(mode="json"),
+                    ))
         cross_pack_issues = self._cross_pack_contribution_issues(closure)
+        preexisting_issues = list(issues)
+        issues = []
         active: list[str] = []
         blocked: list[str] = []
         for pack_id in ordered:
-            current = [*self.validate(pack_id, active_pack_ids=closure), *[item for item in cross_pack_issues if item.pack_id == pack_id]]
+            current = [*self.validate(pack_id, active_pack_ids=closure), *[item for item in preexisting_issues if item.pack_id == pack_id], *[item for item in cross_pack_issues if item.pack_id == pack_id]]
             dependency_blocked = any(item.pack_id in blocked and not item.optional for item in self.get(pack_id).dependencies)
             if dependency_blocked:
                 current.append(PackValidationIssue(code="dependency_blocked", severity="error", message="one or more required dependencies are blocked", pack_id=pack_id))
@@ -186,21 +215,33 @@ class PackManager:
                 blocked.append(pack_id)
             else:
                 active.append(pack_id)
-        return self._resolution(requested, ordered, active, blocked, issues)
+        return self._resolution(requested, ordered, active, blocked, issues, trust_results)
 
-    def _resolution(self, requested: list[str], ordered: list[str], active: list[str], blocked: list[str], issues: list[PackValidationIssue]) -> PackResolution:
+    def _resolution(self, requested: list[str], ordered: list[str], active: list[str], blocked: list[str], issues: list[PackValidationIssue], trust_results: dict[str, PackVerificationResult] | None = None) -> PackResolution:
+        trust_results = trust_results or {}
         statuses: list[PackStatus] = []
         for pack_id in ordered:
             manifest = self.get(pack_id)
             pack_issues = [item for item in issues if item.pack_id in {None, pack_id}]
             state = "active" if pack_id in active else "blocked"
-            statuses.append(PackStatus(pack_id=pack_id, version=manifest.version, state=state, source=self.source(pack_id), enabled=True, resolved_dependencies=[item.pack_id for item in manifest.dependencies if item.pack_id in ordered], contribution_counts=manifest.contributions.counts(), issues=pack_issues, manifest_hash=manifest.content_hash))
+            statuses.append(PackStatus(pack_id=pack_id, version=manifest.version, state=state, source=self.source(pack_id), enabled=True, resolved_dependencies=[item.pack_id for item in manifest.dependencies if item.pack_id in ordered], contribution_counts=manifest.contributions.counts(), issues=pack_issues, manifest_hash=manifest.content_hash, trust_outcome=(trust_results.get(pack_id).outcome if pack_id in trust_results else None), signature_id=(trust_results.get(pack_id).signature_id if pack_id in trust_results else None)))
         counter: Counter[str] = Counter()
         for pack_id in active:
             counter.update(self.get(pack_id).contributions.counts())
         return PackResolution(resolution_id=f"pack-resolution:{uuid4()}", created_at_iso=utc_now_iso(), requested_pack_ids=requested, ordered_pack_ids=ordered, active_pack_ids=active, blocked_pack_ids=blocked, statuses=statuses, issues=issues, contribution_counts=dict(sorted(counter.items())))
 
-    def runtime(self, requested_pack_ids: list[str] | None = None) -> PackRuntime:
-        resolution = self.resolve(requested_pack_ids)
+    def runtime(
+        self,
+        requested_pack_ids: list[str] | None = None,
+        *,
+        trust_policy: PackTrustPolicy | None = None,
+        signatures: dict[str, PackSignature] | None = None,
+        trusted_secrets: dict[str, str] | None = None,
+        trusted_public_keys: dict[str, str] | None = None,
+    ) -> PackRuntime:
+        resolution = self.resolve(
+            requested_pack_ids, trust_policy=trust_policy, signatures=signatures,
+            trusted_secrets=trusted_secrets, trusted_public_keys=trusted_public_keys,
+        )
         manifests = tuple(self.get(pack_id) for pack_id in resolution.active_pack_ids)
         return PackRuntime(resolution=resolution, manifests=manifests)

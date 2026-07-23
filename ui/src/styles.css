@@ -443,3 +443,44 @@ button { color: inherit; }
 .contribution-grid article { min-width:0; border:1px solid var(--border); border-radius:14px; overflow:hidden; }
 .contribution-grid article > header { display:flex; justify-content:space-between; padding:12px 14px; background:var(--surface-2); text-transform:capitalize; }
 @media (max-width:760px) { .pack-workbench { display:block; } .pack-rail { border-right:0; border-bottom:1px solid var(--border); } .pack-header { display:grid; } }
+
+/* Release 1.0 fleet and governance control planes */
+.fleet-workbench { display:grid; grid-template-columns:300px minmax(0,1fr); min-height:calc(100vh - 72px); }
+.fleet-rail { padding:24px 18px; border-right:1px solid var(--border); background:color-mix(in srgb,var(--panel) 94%,transparent); }
+.fleet-main { min-width:0; padding:24px; display:grid; gap:16px; align-content:start; }
+.fleet-list,.fleet-member-list,.common-cause-list,.fleet-waves,.governance-list,.audit-list,.readiness-list { display:grid; gap:10px; }
+.fleet-list { margin-top:18px; }
+.fleet-list > button { display:flex; justify-content:space-between; gap:10px; align-items:center; width:100%; padding:12px; border:1px solid transparent; border-radius:12px; background:transparent; color:inherit; text-align:left; }
+.fleet-list > button:hover,.fleet-list > button.is-selected { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 10%,transparent); }
+.fleet-list span,.fleet-list strong,.fleet-list small { display:block; min-width:0; }
+.fleet-list small { color:var(--muted); margin-top:3px; }
+.fleet-header,.governance-header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
+.fleet-header h1,.governance-header h1 { margin:5px 0; }
+.fleet-header p,.governance-header p { margin:0; color:var(--muted); }
+.fleet-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.fleet-controls select { min-width:150px; }
+.fleet-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.fleet-member-list article,.common-cause-list article,.governance-list article,.audit-list article,.readiness-list article { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid var(--border); border-radius:12px; }
+.fleet-member-list article > div,.common-cause-list article > div,.governance-list article > div,.readiness-list article > div { display:grid; gap:3px; min-width:0; }
+.fleet-member-list .viz-badge,.governance-list .viz-badge { margin-left:auto; }
+.fleet-status-grid,.executor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin-top:14px; }
+.fleet-status-grid article,.executor-grid article { display:grid; gap:10px; padding:14px; border:1px solid var(--border); border-radius:14px; background:var(--panel-subtle); }
+.fleet-status-grid header,.executor-grid header { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.fleet-waves article { display:grid; grid-template-columns:44px minmax(0,1fr); gap:14px; align-items:start; padding:14px; border:1px solid var(--border); border-radius:14px; }
+.wave-number,.audit-sequence { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; background:var(--accent); color:var(--accent-contrast); font-weight:700; }
+.fleet-waves article > div:last-child { display:grid; gap:5px; }
+.governance-workbench { padding:24px; display:grid; gap:16px; align-content:start; }
+.governance-list code { margin-left:auto; overflow-wrap:anywhere; text-align:right; }
+.metric-grid.compact strong { font-size:1.25rem; }
+.audit-list article { display:grid; grid-template-columns:44px minmax(0,1fr) auto; }
+.audit-list article > div { display:grid; gap:3px; }
+.retention-summary { margin-top:16px; display:grid; gap:16px; }
+.readiness-list { margin-top:14px; }
+.viz-callout { margin-bottom:14px; }
+@media (max-width:960px) { .fleet-grid { grid-template-columns:1fr; } .fleet-header,.governance-header { display:grid; } }
+@media (max-width:760px) { .fleet-workbench { display:block; } .fleet-rail { border-right:0; border-bottom:1px solid var(--border); } .fleet-controls { width:100%; } .governance-list article { align-items:flex-start; flex-direction:column; } .governance-list code { margin-left:0; text-align:left; } }
+.login-page { min-height:100vh; display:grid; place-items:center; padding:24px; background:var(--background); }
+.login-panel { width:min(460px,100%); display:grid; gap:18px; padding:28px; border:1px solid var(--border); border-radius:18px; background:var(--panel); }
+.login-panel h1 { margin:5px 0; }
+.login-panel p { margin:0; color:var(--muted); }
+.login-panel .brand-mark { width:48px; height:48px; }

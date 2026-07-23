@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from typing import Any
 
 from django.db import transaction
@@ -87,8 +90,21 @@ from kubeops_core.models import (
     ExecutionCheckpoint,
     OperationEvent,
 )
+from kubeops_core.models import (
+    AuditChainVerification, AuditEvent, AuditExport, AuthorizationDecision, AuthorizationRequest,
+    BackupComponent, CommonCauseFinding, ConcurrencyRule, ControlPlaneBackupManifest,
+    ControlPlaneRestorePlan, DispatchDecision, ExecutionTask, ExecutorAgentDefinition, ExecutorHeartbeat,
+    FleetAssessment, FleetDefinition, FleetDependency, FleetEnvironmentStatus, FleetMember, FleetOperationPlan,
+    FleetOperationWave, GovernanceDecision, OrganizationDefinition, PackSignature, PackTrustPolicy,
+    PackVerificationResult, RateLimitRule, RetentionCandidate, RetentionPlan, RetentionPolicy, RoleGrant,
+    ScopeBinding, SecretReference, SecretResolutionReceipt, TaskLease, UpgradeReadinessCheck,
+    UpgradeReadinessReport, WorkspaceDefinition, RestoreStep, MaintenanceWindow, ScheduledOperation, ScheduleDecision,
+)
 from kubeops_core.scenarios import ScenarioCompileError, ScenarioComposer
 from kubeops_core.topology import TopologyCompiler
+
+from .scoping import enforce_payload_scope, requested_scope
+from .governance import evaluate_governance, mark_governance_usage_terminal
 
 from .models import (
     AccessValidationRecord,
@@ -102,6 +118,7 @@ from .models import (
     IncidentTimelineRecord,
     OperationEventRecord,
     OperationRecord,
+    OrganizationRecord,
     OperationPolicyDecisionRecord,
     OperationApprovalRecord,
     ActionReceiptRecord,
@@ -112,31 +129,45 @@ from .models import (
     KnowledgePackRecord,
     LifecycleProfileRecord,
     ExecutionPolicyRecord,
+    ExecutionTaskRecord,
+    ExecutorAgentRecord,
+    FleetRecord,
     OperationalProfileRecord,
     ProfileAssessmentRecord,
     ProbeRunRecord,
     ScenarioRunRecord,
     SnapshotEntityRecord,
     SnapshotRelationshipRecord,
+    WorkspaceRecord,
 )
 from .services import (
     action_catalog,
+    action_catalog_for_workspace,
     artifact_store,
     diagnostic_catalog,
+    diagnostic_catalog_for_workspace,
     environment_intelligence,
+    environment_intelligence_for_workspace,
     investigation_service,
+    investigation_service_for_workspace,
     lifecycle_planner,
+    lifecycle_planner_for_workspace,
     lifecycle_registry,
+    lifecycle_registry_for_workspace,
     operation_runtime,
+    operation_runtime_for_workspace,
     policy_registry,
     profile_registry,
-    registry_catalog,
+    profile_registry_for_workspace,
+    registry_catalog, registry_catalog_for_workspace,
     scenario_compiler,
-    scenario_diagnosis_evaluator,
+    scenario_diagnosis_evaluator, scenario_diagnosis_evaluator_for_workspace,
     scenario_registry,
     simulation_engine,
     pack_manager,
     pack_runtime,
+    pack_runtime_for_workspace,
+    resolve_pack_runtime_for_workspace,
 )
 
 
@@ -154,6 +185,23 @@ def _validation_error(exc: ValidationError) -> Response:
     )
 
 
+def _record_workspace_id(record: EnvironmentRecord) -> str:
+    if record.workspace is not None:
+        return record.workspace.workspace_id
+    return settings.KUBEOPS_DEFAULT_WORKSPACE_ID
+
+
+def _request_scope_records(request: Request) -> tuple[OrganizationRecord, WorkspaceRecord]:
+    organization_id, workspace_id = requested_scope(request)
+    organization = get_object_or_404(OrganizationRecord, organization_id=organization_id, active=True)
+    workspace = get_object_or_404(
+        WorkspaceRecord.objects.select_related("organization"), workspace_id=workspace_id, active=True
+    )
+    if workspace.organization_id != organization.pk:
+        raise ValueError("requested workspace does not belong to requested organization")
+    return organization, workspace
+
+
 def _environment(record: EnvironmentRecord) -> EnvironmentDefinition:
     return EnvironmentDefinition.model_validate(record.payload)
 
@@ -162,11 +210,15 @@ def _snapshot(record: EnvironmentSnapshotRecord) -> EnvironmentSnapshot:
     return EnvironmentSnapshot.model_validate(record.payload)
 
 
-def _persist_run(scenario: ScenarioInstance, run: SimulationRun) -> list[dict[str, str]]:
+def _persist_run(
+    scenario: ScenarioInstance, run: SimulationRun, organization: OrganizationRecord, workspace: WorkspaceRecord
+) -> list[dict[str, str]]:
     artifacts = build_run_artifacts(scenario, run)
     paths = {artifact.artifact_id: artifact_store().put(artifact) for artifact in artifacts}
     with transaction.atomic():
         run_record = ScenarioRunRecord.objects.create(
+            organization=organization,
+            workspace=workspace,
             run_id=run.run_id,
             scenario_id=run.scenario_id,
             family_id=run.family_id,
@@ -190,6 +242,8 @@ def _persist_run(scenario: ScenarioInstance, run: SimulationRun) -> list[dict[st
         ArtifactRecord.objects.bulk_create(
             [
                 ArtifactRecord(
+                    organization=organization,
+                    workspace=workspace,
                     artifact_id=artifact.artifact_id,
                     run=run_record,
                     scope_type="simulation_run",
@@ -210,7 +264,37 @@ def _persist_run(scenario: ScenarioInstance, run: SimulationRun) -> list[dict[st
 
 
 def _persist_environment(environment: EnvironmentDefinition, *, update: bool = False) -> EnvironmentRecord:
+    organization, _ = OrganizationRecord.objects.get_or_create(
+        organization_id=environment.organization_id,
+        defaults={
+            "name": environment.organization_id.replace("-", " ").title(),
+            "slug": environment.organization_id,
+            "payload": {
+                "organization_id": environment.organization_id,
+                "name": environment.organization_id.replace("-", " ").title(),
+                "slug": environment.organization_id,
+            },
+        },
+    )
+    workspace, _ = WorkspaceRecord.objects.get_or_create(
+        workspace_id=environment.workspace_id,
+        defaults={
+            "organization": organization,
+            "name": environment.workspace_id.replace("-", " ").title(),
+            "slug": environment.workspace_id,
+            "payload": {
+                "workspace_id": environment.workspace_id,
+                "organization_id": organization.organization_id,
+                "name": environment.workspace_id.replace("-", " ").title(),
+                "slug": environment.workspace_id,
+            },
+        },
+    )
+    if workspace.organization_id != organization.pk:
+        raise ValueError("environment workspace belongs to a different organization")
     defaults = {
+        "organization": organization,
+        "workspace": workspace,
         "name": environment.name,
         "environment_class": environment.environment_class,
         "provider": environment.provider,
@@ -315,6 +399,8 @@ def _persist_snapshot(
         ArtifactRecord.objects.bulk_create(
             [
                 ArtifactRecord(
+                    organization=environment_record.organization,
+                    workspace=environment_record.workspace,
                     artifact_id=artifact.artifact_id,
                     scope_type=artifact.scope_type,
                     scope_id=artifact.scope_id,
@@ -436,6 +522,8 @@ def _persist_incident(
         ArtifactRecord.objects.bulk_create(
             [
                 ArtifactRecord(
+                    organization=snapshot_record.environment.organization,
+                    workspace=snapshot_record.environment.workspace,
                     artifact_id=artifact.artifact_id,
                     scope_type=artifact.scope_type,
                     scope_id=artifact.scope_id,
@@ -521,7 +609,9 @@ def _snapshot_summary(record: EnvironmentSnapshotRecord) -> dict[str, Any]:
 class KnowledgePackListView(APIView):
     def get(self, request: Request) -> Response:
         manager = pack_manager()
-        resolution = pack_runtime().resolution
+        _, workspace_id = requested_scope(request)
+        runtime = pack_runtime_for_workspace(workspace_id)
+        resolution = runtime.resolution
         status_by_id = {item.pack_id: item for item in resolution.statuses}
         payload = []
         for manifest in manager.values():
@@ -534,7 +624,7 @@ class KnowledgePackListView(APIView):
         return Response({
             "packs": payload,
             "resolution": resolution.model_dump(mode="json"),
-            "coverage": pack_runtime().coverage_report().model_dump(mode="json"),
+            "coverage": runtime.coverage_report().model_dump(mode="json"),
         })
 
 
@@ -542,13 +632,16 @@ class KnowledgePackDetailView(APIView):
     def get(self, request: Request, pack_id: str) -> Response:
         try:
             manifest = pack_manager().get(pack_id)
+            _, workspace_id = requested_scope(request)
+            runtime = resolve_pack_runtime_for_workspace(workspace_id, (pack_id,))
         except KeyError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
-        resolution = pack_manager().resolve([pack_id])
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         return Response({
             "manifest": manifest.model_dump(mode="json"),
             "source": pack_manager().source(pack_id),
-            "resolution": resolution.model_dump(mode="json"),
+            "resolution": runtime.resolution.model_dump(mode="json"),
             "issues": [item.model_dump(mode="json") for item in pack_manager().validate(pack_id)],
         })
 
@@ -557,26 +650,32 @@ class KnowledgePackResolveView(APIView):
     def post(self, request: Request) -> Response:
         requested = request.data.get("pack_ids")
         try:
-            resolution = pack_manager().resolve(list(requested) if requested else None)
+            _, workspace_id = requested_scope(request)
+            requested_ids = tuple(requested) if requested else None
+            runtime = resolve_pack_runtime_for_workspace(workspace_id, requested_ids)
         except (KeyError, ValueError) as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        return Response(resolution.model_dump(mode="json"))
+        return Response(runtime.resolution.model_dump(mode="json"))
 
 
 class KnowledgePackCoverageView(APIView):
     def get(self, request: Request) -> Response:
-        return Response(pack_runtime().coverage_report().model_dump(mode="json"))
+        _, workspace_id = requested_scope(request)
+        return Response(pack_runtime_for_workspace(workspace_id).coverage_report().model_dump(mode="json"))
 
 
 class SystemStatusView(APIView):
+    public_access = True
+
     def get(self, request: Request) -> Response:
         return Response(
             {
                 "service": "kubeops-control-plane",
-                "release": "0.5.0",
+                "release": "1.0.0",
                 "core_version": core_version,
-                "mode": "guarded_lifecycle_recovery",
+                "mode": "production_control_plane",
                 "status": "ok",
+                "anonymous_read_enabled": settings.KUBEOPS_ALLOW_ANONYMOUS_READ,
                 "family_count": len(scenario_registry()),
                 "pack_count": len(pack_manager().values()),
                 "active_pack_count": len(pack_runtime().active_pack_ids),
@@ -590,6 +689,10 @@ class SystemStatusView(APIView):
                 "lifecycle_profile_count": len(lifecycle_registry()),
                 "execution_policy_count": len(policy_registry()),
                 "operation_count": OperationRecord.objects.count(),
+                "organization_count": OrganizationRecord.objects.count(),
+                "workspace_count": WorkspaceRecord.objects.count(),
+                "fleet_count": FleetRecord.objects.count(),
+                "executor_count": ExecutorAgentRecord.objects.count(),
                 "capabilities": [
                     "canonical_ir",
                     "scenario_compilation",
@@ -633,6 +736,16 @@ class SystemStatusView(APIView):
                     "pack_redaction",
                     "pack_scenario_coverage",
                     "pack_authoring_sdk",
+                    "multi_tenant_rbac",
+                    "fleet_intelligence",
+                    "common_cause_detection",
+                    "distributed_executor_leases",
+                    "tamper_evident_audit",
+                    "retention_planning",
+                    "secret_references",
+                    "pack_signature_verification",
+                    "platform_backup_restore",
+                    "upgrade_readiness",
                 ],
             }
         )
@@ -640,7 +753,8 @@ class SystemStatusView(APIView):
 
 class RegistryView(APIView):
     def get(self, request: Request) -> Response:
-        payload = registry_catalog().snapshot().model_dump(mode="json")
+        _, workspace_id = requested_scope(request)
+        payload = registry_catalog_for_workspace(workspace_id).snapshot().model_dump(mode="json")
         payload["schemas"] = sorted(SchemaView.schema_types)
         return Response(payload)
 
@@ -666,6 +780,14 @@ class SchemaView(APIView):
             PackContributions, PackCoverageReport, PackDependency, PackResolution,
             PackScenarioCoverage, PackStatus, PackValidationIssue, EntityClassifierRule,
             RelationshipResolverRule, RedactionRule,
+            OrganizationDefinition, WorkspaceDefinition, RoleGrant, AuthorizationRequest, AuthorizationDecision, ScopeBinding,
+            FleetMember, FleetDependency, FleetDefinition, FleetEnvironmentStatus, CommonCauseFinding, FleetAssessment, FleetOperationWave, FleetOperationPlan,
+            ExecutorAgentDefinition, ExecutorHeartbeat, ExecutionTask, TaskLease, DispatchDecision,
+            RateLimitRule, ConcurrencyRule, GovernanceDecision, RetentionPolicy, RetentionCandidate, RetentionPlan,
+            AuditEvent, AuditChainVerification, AuditExport, SecretReference, SecretResolutionReceipt,
+            PackSignature, PackTrustPolicy, PackVerificationResult, BackupComponent, ControlPlaneBackupManifest,
+            ControlPlaneRestorePlan, RestoreStep, UpgradeReadinessCheck, UpgradeReadinessReport,
+            MaintenanceWindow, ScheduledOperation, ScheduleDecision,
         ]
     }
 
@@ -679,7 +801,8 @@ class SchemaView(APIView):
 class OperationalProfileListView(APIView):
     def get(self, request: Request) -> Response:
         payload = []
-        for profile in profile_registry().values():
+        _, workspace_id = requested_scope(request)
+        for profile in profile_registry_for_workspace(workspace_id).values():
             item = profile.model_dump(mode="json")
             item["content_hash"] = profile.content_hash
             payload.append(item)
@@ -689,7 +812,8 @@ class OperationalProfileListView(APIView):
 class OperationalProfileDetailView(APIView):
     def get(self, request: Request, profile_id: str) -> Response:
         try:
-            profile = profile_registry().get(profile_id)
+            _, workspace_id = requested_scope(request)
+            profile = profile_registry_for_workspace(workspace_id).get(profile_id)
         except KeyError:
             return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
         payload = profile.model_dump(mode="json")
@@ -699,12 +823,19 @@ class OperationalProfileDetailView(APIView):
 
 class EnvironmentListView(APIView):
     def get(self, request: Request) -> Response:
-        records = EnvironmentRecord.objects.prefetch_related("snapshots__assessments", "access_validations").filter(active=True)
+        _, workspace_id = requested_scope(request)
+        records = (
+            EnvironmentRecord.objects.prefetch_related("snapshots__assessments", "access_validations")
+            .filter(active=True, workspace__workspace_id=workspace_id)
+        )
         return Response([_environment_summary(record) for record in records])
 
     def post(self, request: Request) -> Response:
         try:
             environment = EnvironmentDefinition.model_validate(request.data)
+            enforce_payload_scope(
+                request, organization_id=environment.organization_id, workspace_id=environment.workspace_id
+            )
         except ValidationError as exc:
             return _validation_error(exc)
         if EnvironmentRecord.objects.filter(environment_id=environment.environment_id).exists():
@@ -729,6 +860,9 @@ class EnvironmentDetailView(APIView):
         payload["environment_id"] = environment_id
         try:
             environment = EnvironmentDefinition.model_validate(payload)
+            enforce_payload_scope(
+                request, organization_id=environment.organization_id, workspace_id=environment.workspace_id
+            )
         except ValidationError as exc:
             return _validation_error(exc)
         record = _persist_environment(environment, update=True)
@@ -745,7 +879,10 @@ class EnvironmentAccessValidationView(APIView):
     def post(self, request: Request, environment_id: str) -> Response:
         record = get_object_or_404(EnvironmentRecord, environment_id=environment_id, active=True)
         try:
-            result = environment_intelligence().validate(_environment(record), request.data.get("method_id"))
+            workspace_id = _record_workspace_id(record)
+            result = environment_intelligence_for_workspace(workspace_id).validate(
+                _environment(record), request.data.get("method_id")
+            )
         except (OSError, ValueError, TimeoutError) as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
         _persist_validation(record, result)
@@ -762,14 +899,15 @@ class EnvironmentSnapshotListView(APIView):
         environment = _environment(record)
         profile_ids = request.data.get("profile_ids") or environment.operational_profile_ids
         try:
-            profiles = [profile_registry().get(profile_id) for profile_id in profile_ids]
+            workspace_id = _record_workspace_id(record)
+            profiles = [profile_registry_for_workspace(workspace_id).get(profile_id) for profile_id in profile_ids]
         except KeyError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         history_records = list(record.snapshots.all()[:20])
         history = [_snapshot(item) for item in reversed(history_records)]
         previous = history[-1] if history else None
         try:
-            result = environment_intelligence().collect(
+            result = environment_intelligence_for_workspace(workspace_id).collect(
                 environment,
                 method_id=request.data.get("method_id"),
                 resource_types=request.data.get("resource_types"),
@@ -844,7 +982,8 @@ class SnapshotHealthView(APIView):
         if existing:
             return Response(existing.payload)
         try:
-            profile = profile_registry().get(profile_id)
+            workspace_id = _record_workspace_id(record.environment)
+            profile = profile_registry_for_workspace(workspace_id).get(profile_id)
         except KeyError:
             return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
         history_records = list(record.environment.snapshots.filter(captured_at__lte=record.captured_at).order_by("captured_at"))
@@ -878,7 +1017,8 @@ class SnapshotFixtureExportView(APIView):
 
 class DiagnosticCatalogView(APIView):
     def get(self, request: Request) -> Response:
-        catalog = diagnostic_catalog()
+        _, workspace_id = requested_scope(request)
+        catalog = diagnostic_catalog_for_workspace(workspace_id)
         return Response(
             {
                 "intents": [item.model_dump(mode="json") for item in catalog.intents()],
@@ -896,7 +1036,10 @@ class DiagnosticCatalogView(APIView):
 
 class IncidentListView(APIView):
     def get(self, request: Request) -> Response:
-        queryset = IncidentRecord.objects.select_related("environment", "snapshot").all()
+        _, workspace_id = requested_scope(request)
+        queryset = IncidentRecord.objects.select_related("environment", "snapshot").filter(
+            environment__workspace__workspace_id=workspace_id
+        )
         environment_id = request.query_params.get("environment_id")
         incident_status = request.query_params.get("status")
         if environment_id:
@@ -916,7 +1059,8 @@ class SnapshotIncidentCreateView(APIView):
         if not profile_id:
             return Response({"detail": "profile_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            profile = profile_registry().get(profile_id)
+            workspace_id = _record_workspace_id(snapshot_record.environment)
+            profile = profile_registry_for_workspace(workspace_id).get(profile_id)
         except KeyError:
             return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
         snapshot = _snapshot(snapshot_record)
@@ -924,7 +1068,7 @@ class SnapshotIncidentCreateView(APIView):
         history_records = list(
             snapshot_record.environment.snapshots.filter(captured_at__lte=snapshot_record.captured_at).order_by("captured_at")
         )
-        incident = investigation_service().open(
+        incident = investigation_service_for_workspace(workspace_id).open(
             snapshot,
             profile,
             topology=topology,
@@ -966,7 +1110,8 @@ class IncidentProbeRunView(APIView):
         )
         incident = IncidentInvestigation.model_validate(record.payload)
         try:
-            profile = profile_registry().get(incident.profile_id)
+            workspace_id = _record_workspace_id(record.environment)
+            profile = profile_registry_for_workspace(workspace_id).get(incident.profile_id)
         except KeyError:
             return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
         snapshot = _snapshot(record.snapshot)
@@ -975,7 +1120,7 @@ class IncidentProbeRunView(APIView):
             record.environment.snapshots.filter(captured_at__lte=record.snapshot.captured_at).order_by("captured_at")
         )
         try:
-            refined = investigation_service().run_probe(
+            refined = investigation_service_for_workspace(workspace_id).run_probe(
                 incident,
                 probe_id,
                 snapshot,
@@ -1013,7 +1158,8 @@ class DiagnosisCoverageView(APIView):
         for incident in incidents:
             key = incident.certificate_status or "none"
             status_counts[key] = status_counts.get(key, 0) + 1
-        catalog = diagnostic_catalog()
+        _, workspace_id = requested_scope(request)
+        catalog = diagnostic_catalog_for_workspace(workspace_id)
         represented = {item.family_id for item in catalog.templates() if not item.generic}
         observed = set(family_counts)
         return Response(
@@ -1099,11 +1245,13 @@ class ScenarioDiagnoseView(APIView):
             return Response({"errors": getattr(exc, "errors", [str(exc)])}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
         run = simulation_engine().run(scenario, seed=int(payload.get("seed", 0)))
-        result = scenario_diagnosis_evaluator().evaluate(scenario, run, expectation)
+        _, workspace_id = requested_scope(request)
+        result = scenario_diagnosis_evaluator_for_workspace(workspace_id).evaluate(scenario, run, expectation)
         response = result.model_dump(mode="json")
         response["run"] = run.model_dump(mode="json")
         response["scenario"] = scenario.model_dump(mode="json")
-        response["artifacts"] = _persist_run(scenario, run)
+        organization, workspace = _request_scope_records(request)
+        response["artifacts"] = _persist_run(scenario, run, organization, workspace)
         return Response(response, status=status.HTTP_201_CREATED)
 
 
@@ -1126,7 +1274,8 @@ class ScenarioRunView(APIView):
         run = simulation_engine().run(scenario, seed=int(payload.get("seed", 0)))
         response = run.model_dump(mode="json")
         response["scenario"] = scenario.model_dump(mode="json")
-        response["artifacts"] = _persist_run(scenario, run)
+        organization, workspace = _request_scope_records(request)
+        response["artifacts"] = _persist_run(scenario, run, organization, workspace)
         return Response(response, status=status.HTTP_201_CREATED)
 
 
@@ -1152,13 +1301,15 @@ class CompositionRunView(APIView):
         run = simulation_engine().run(scenario, seed=int(request.data.get("seed", 0)))
         response = run.model_dump(mode="json")
         response["scenario"] = scenario.model_dump(mode="json")
-        response["artifacts"] = _persist_run(scenario, run)
+        organization, workspace = _request_scope_records(request)
+        response["artifacts"] = _persist_run(scenario, run, organization, workspace)
         return Response(response, status=status.HTTP_201_CREATED)
 
 
 class ArtifactListView(APIView):
     def get(self, request: Request) -> Response:
-        queryset = ArtifactRecord.objects.select_related("run").all()
+        _, workspace_id = requested_scope(request)
+        queryset = ArtifactRecord.objects.select_related("run").filter(workspace__workspace_id=workspace_id)
         run_id = request.query_params.get("run_id")
         scope_id = request.query_params.get("scope_id")
         scope_type = request.query_params.get("scope_type")
@@ -1189,7 +1340,10 @@ class ArtifactListView(APIView):
 
 class ArtifactDetailView(APIView):
     def get(self, request: Request, artifact_id: str) -> Response:
-        record = get_object_or_404(ArtifactRecord.objects.select_related("run"), artifact_id=artifact_id)
+        _, workspace_id = requested_scope(request)
+        record = get_object_or_404(
+            ArtifactRecord.objects.select_related("run"), artifact_id=artifact_id, workspace__workspace_id=workspace_id
+        )
         scope_id = record.scope_id or (record.run.run_id if record.run else "")
         artifact = artifact_store().get(scope_id, record.artifact_id)
         payload = artifact.model_dump(mode="json")
@@ -1199,6 +1353,7 @@ class ArtifactDetailView(APIView):
 
 class ScenarioRunListView(APIView):
     def get(self, request: Request) -> Response:
+        _, workspace_id = requested_scope(request)
         return Response(
             [
                 {
@@ -1210,14 +1365,15 @@ class ScenarioRunListView(APIView):
                     "completed_at": record.completed_at,
                     "final_summary": record.run_payload.get("final_summary", {}),
                 }
-                for record in ScenarioRunRecord.objects.all()[:100]
+                for record in ScenarioRunRecord.objects.filter(workspace__workspace_id=workspace_id)[:100]
             ]
         )
 
 
 class ScenarioRunDetailView(APIView):
     def get(self, request: Request, run_id: str) -> Response:
-        record = get_object_or_404(ScenarioRunRecord, run_id=run_id)
+        _, workspace_id = requested_scope(request)
+        record = get_object_or_404(ScenarioRunRecord, run_id=run_id, workspace__workspace_id=workspace_id)
         payload = dict(record.run_payload)
         payload["scenario"] = record.scenario_payload
         payload["artifacts"] = [
@@ -1295,7 +1451,6 @@ def _persist_operation(
             ExecutionCheckpointRecord,
             OperationVerificationRecord,
             RecoveryCertificateRecord,
-    KnowledgePackRecord,
         ]:
             related.objects.filter(operation=record).delete()
         OperationPolicyDecisionRecord.objects.bulk_create([
@@ -1326,7 +1481,7 @@ def _persist_operation(
             RecoveryCertificateRecord.objects.create(certificate_id=operation.recovery_certificate.certificate_id, operation=record, status=operation.recovery_certificate.status, payload=operation.recovery_certificate.model_dump(mode="json"))
         ArtifactRecord.objects.filter(scope_type="operation", scope_id=operation.operation_id).delete()
         ArtifactRecord.objects.bulk_create([
-            ArtifactRecord(artifact_id=item.artifact_id, scope_type=item.scope_type, scope_id=item.scope_id, artifact_type=item.artifact_type, content_hash=item.payload_hash, media_type=item.media_type, storage_path=str(paths[item.artifact_id]), derived_from=item.derived_from, metadata=item.metadata)
+            ArtifactRecord(organization=environment_record.organization, workspace=environment_record.workspace, artifact_id=item.artifact_id, scope_type=item.scope_type, scope_id=item.scope_id, artifact_type=item.artifact_type, content_hash=item.payload_hash, media_type=item.media_type, storage_path=str(paths[item.artifact_id]), derived_from=item.derived_from, metadata=item.metadata)
             for item in artifacts
         ], ignore_conflicts=True)
     return record, [{"artifact_id": item.artifact_id, "artifact_type": item.artifact_type, "content_hash": item.payload_hash} for item in artifacts]
@@ -1359,7 +1514,11 @@ def _runtime_context(operation: OperationRun, environment: EnvironmentRecord, sn
     capabilities = set(request_payload.get("capabilities", []))
     if adapter_mode == "simulation" or operation.mode == "dry_run":
         for action in operation.plan.actions:
-            capabilities.update(action_catalog().get(action.action_type_id).required_capabilities)
+            capabilities.update(
+                action_catalog_for_workspace(_record_workspace_id(environment))
+                .get(action.action_type_id)
+                .required_capabilities
+            )
     world = _snapshot_world(snapshot)
     return RuntimeContext(
         policy_context=PolicyContext(
@@ -1383,18 +1542,21 @@ def _runtime_context(operation: OperationRun, environment: EnvironmentRecord, sn
 
 class ActionCatalogView(APIView):
     def get(self, request: Request) -> Response:
-        return Response([item.model_dump(mode="json") for item in action_catalog().values()])
+        _, workspace_id = requested_scope(request)
+        return Response([item.model_dump(mode="json") for item in action_catalog_for_workspace(workspace_id).values()])
 
 
 class LifecycleProfileListView(APIView):
     def get(self, request: Request) -> Response:
-        return Response([item.model_dump(mode="json") for item in lifecycle_registry().values()])
+        _, workspace_id = requested_scope(request)
+        return Response([item.model_dump(mode="json") for item in lifecycle_registry_for_workspace(workspace_id).values()])
 
 
 class LifecycleProfileDetailView(APIView):
     def get(self, request: Request, profile_id: str) -> Response:
         try:
-            return Response(lifecycle_registry().get(profile_id).model_dump(mode="json"))
+            _, workspace_id = requested_scope(request)
+            return Response(lifecycle_registry_for_workspace(workspace_id).get(profile_id).model_dump(mode="json"))
         except KeyError:
             return Response({"detail": "lifecycle profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1408,11 +1570,15 @@ class SnapshotLifecyclePlanView(APIView):
     def post(self, request: Request, snapshot_id: str) -> Response:
         record = get_object_or_404(EnvironmentSnapshotRecord, snapshot_id=snapshot_id)
         try:
-            profile = lifecycle_registry().get(request.data["lifecycle_profile_id"])
+            workspace_id = _record_workspace_id(record.environment)
+            profile = lifecycle_registry_for_workspace(workspace_id).get(request.data["lifecycle_profile_id"])
             snapshot = _snapshot(record)
             assessment_record = record.assessments.filter(profile_id=profile.target_operational_profile_id).first()
             assessment = OperationalProfileAssessment.model_validate(assessment_record.payload) if assessment_record else None
-            plan = lifecycle_planner().plan(profile, snapshot, assessment, mode=request.data.get("mode", "dry_run"), policy_id=request.data.get("policy_id"))
+            plan = lifecycle_planner_for_workspace(workspace_id).plan(
+                profile, snapshot, assessment, mode=request.data.get("mode", "dry_run"),
+                policy_id=request.data.get("policy_id")
+            )
             return Response(plan.model_dump(mode="json"), status=status.HTTP_201_CREATED)
         except KeyError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
@@ -1422,7 +1588,10 @@ class SnapshotLifecyclePlanView(APIView):
 
 class OperationListCreateView(APIView):
     def get(self, request: Request) -> Response:
-        records = OperationRecord.objects.select_related("environment", "snapshot", "incident")
+        _, workspace_id = requested_scope(request)
+        records = OperationRecord.objects.select_related("environment", "snapshot", "incident").filter(
+            environment__workspace__workspace_id=workspace_id
+        )
         environment_id = request.query_params.get("environment_id")
         if environment_id:
             records = records.filter(environment__environment_id=environment_id)
@@ -1431,15 +1600,41 @@ class OperationListCreateView(APIView):
     def post(self, request: Request) -> Response:
         snapshot_record = get_object_or_404(EnvironmentSnapshotRecord, snapshot_id=request.data.get("snapshot_id"))
         environment_record = snapshot_record.environment
+        if environment_record.workspace is None:
+            return Response({"detail": "environment has no workspace scope"}, status=status.HTTP_409_CONFLICT)
+        active_count = OperationRecord.objects.filter(environment__workspace=environment_record.workspace).exclude(
+            status__in=["completed", "failed", "cancelled"]
+        ).count()
+        governance = evaluate_governance(
+            workspace=environment_record.workspace, operation="operation.create", active_count=active_count,
+            target_id=environment_record.environment_id,
+        )
+        if governance.outcome != "allow":
+            response = Response(governance.model_dump(mode="json"), status=status.HTTP_429_TOO_MANY_REQUESTS)
+            if governance.retry_after_seconds is not None:
+                response["Retry-After"] = str(governance.retry_after_seconds)
+            return response
         try:
-            profile = lifecycle_registry().get(request.data["lifecycle_profile_id"])
+            workspace_id = _record_workspace_id(environment_record)
+            profile = lifecycle_registry_for_workspace(workspace_id).get(request.data["lifecycle_profile_id"])
             snapshot = _snapshot(snapshot_record)
             assessment_record = snapshot_record.assessments.filter(profile_id=profile.target_operational_profile_id).first()
             assessment = OperationalProfileAssessment.model_validate(assessment_record.payload) if assessment_record else None
             mode = request.data.get("mode", "dry_run")
-            plan = lifecycle_planner().plan(profile, snapshot, assessment, mode=mode, policy_id=request.data.get("policy_id"))
-            operation = operation_runtime().create(environment_record.environment_id, plan, mode=mode)
+            plan = lifecycle_planner_for_workspace(workspace_id).plan(
+                profile, snapshot, assessment, mode=mode, policy_id=request.data.get("policy_id")
+            )
+            operation = operation_runtime_for_workspace(workspace_id).create(
+                environment_record.environment_id, plan, mode=mode
+            )
+            operation = operation.model_copy(update={
+                "metadata": {**operation.metadata, "governance_decision": governance.model_dump(mode="json")}
+            })
             record, artifacts = _persist_operation(operation, environment_record, snapshot_record=snapshot_record)
+            mark_governance_usage_terminal(
+                workspace=environment_record.workspace, operation="operation.create",
+                target_id=environment_record.environment_id,
+            )
             payload = record.payload
             payload["artifacts"] = artifacts
             return Response(payload, status=status.HTTP_201_CREATED)
@@ -1474,7 +1669,8 @@ class OperationApprovalView(APIView):
             granted_at_iso=utc_now_iso(),
             policy_id=operation.plan.policy_id,
         )
-        operation = operation_runtime().add_approval(operation, approval)
+        runtime = operation_runtime_for_workspace(_record_workspace_id(record.environment))
+        operation = runtime.add_approval(operation, approval)
         updated, artifacts = _persist_operation(operation, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)
         payload = updated.payload
         payload["artifacts"] = artifacts
@@ -1492,7 +1688,9 @@ class OperationRunView(APIView):
         try:
             policy = policy_registry().get(operation.plan.policy_id or "local-development-guarded.v1")
             context = _runtime_context(operation, record.environment, snapshot, dict(request.data))
-            finished = operation_runtime().run(operation, policy, context)
+            finished = operation_runtime_for_workspace(_record_workspace_id(record.environment)).run(
+                operation, policy, context
+            )
         except PermissionError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
         updated, artifacts = _persist_operation(finished, record.environment, snapshot_record=snapshot_record, incident_record=record.incident)
@@ -1501,15 +1699,265 @@ class OperationRunView(APIView):
         return Response(payload, status=status.HTTP_201_CREATED)
 
 
+class OperationDistributedDispatchView(APIView):
+    required_capabilities = {"operation.execute"}
+
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        if record.snapshot is None:
+            return Response({"detail": "operation has no source snapshot"}, status=status.HTTP_409_CONFLICT)
+        operation = _operation(record)
+        snapshot = _snapshot(record.snapshot)
+        requested_mode = request.data.get("execution_mode", "live")
+        if requested_mode not in {"live", "simulation", "dry_run"}:
+            return Response({"detail": "execution_mode must be live, simulation, or dry_run"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        try:
+            policy = policy_registry().get(operation.plan.policy_id or "local-development-guarded.v1")
+            context_payload = dict(request.data)
+            context_payload["execution_mode"] = "live" if requested_mode == "live" else "simulation"
+            context = _runtime_context(operation, record.environment, snapshot, context_payload)
+            runtime = operation_runtime_for_workspace(_record_workspace_id(record.environment))
+            authorized = runtime.authorize(operation, policy, context)
+        except PermissionError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        if authorized.status != "authorized":
+            updated, artifacts = _persist_operation(
+                authorized, record.environment, snapshot_record=record.snapshot, incident_record=record.incident
+            )
+            payload = dict(updated.payload)
+            payload["artifacts"] = artifacts
+            return Response(payload, status=status.HTTP_409_CONFLICT)
+
+        if record.environment.workspace is None:
+            return Response({"detail": "environment has no workspace scope"}, status=status.HTTP_409_CONFLICT)
+
+        workspace_id = _record_workspace_id(record.environment)
+        catalog = action_catalog_for_workspace(workspace_id)
+        prepared_actions: list[tuple[ActionInstance, ActionTypeDefinition]] = []
+        try:
+            for action in authorized.plan.actions:
+                definition = catalog.validate_instance(action)
+                if requested_mode == "live" and "live" not in definition.supported_modes:
+                    return Response(
+                        {"detail": f"action {action.action_id} does not support live execution"},
+                        status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    )
+                if requested_mode == "simulation" and "simulation" not in definition.supported_modes:
+                    return Response(
+                        {"detail": f"action {action.action_id} does not support simulation"},
+                        status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    )
+                prepared_actions.append((action, definition))
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        if not prepared_actions:
+            return Response({"detail": "operation has no actions to dispatch"}, status=status.HTTP_409_CONFLICT)
+
+        active_tasks = ExecutionTaskRecord.objects.filter(
+            workspace=record.environment.workspace, status__in=["queued", "leased", "running"]
+        ).count()
+        governance = evaluate_governance(
+            workspace=record.environment.workspace, operation="operation.dispatch", active_count=active_tasks,
+            target_id=operation_id,
+        )
+        if governance.outcome != "allow":
+            response = Response(governance.model_dump(mode="json"), status=status.HTTP_429_TOO_MANY_REQUESTS)
+            if governance.retry_after_seconds is not None:
+                response["Retry-After"] = str(governance.retry_after_seconds)
+            return response
+
+        now = utc_now_iso()
+        tasks: list[ExecutionTask] = []
+        try:
+            with transaction.atomic():
+                for action, definition in prepared_actions:
+                    executor_id = (
+                        "dry_run" if requested_mode == "dry_run"
+                        else "simulation" if requested_mode == "simulation"
+                        else definition.executor_id
+                    )
+                    required_capabilities = (
+                        set() if requested_mode in {"dry_run", "simulation"}
+                        else set(definition.required_capabilities)
+                    )
+                    execution_payload = {
+                        "action": action.model_dump(mode="json"),
+                        "action_definition": definition.model_dump(mode="json"),
+                        "mode": requested_mode,
+                        "attempt": 1,
+                        "depends_on_action_ids": action.depends_on_action_ids,
+                        "execution_context": {
+                            "command_timeout_seconds": definition.timeout_seconds,
+                            "executable_allowlist": request.data.get(
+                                "executable_allowlist", ["docker", "kubectl", "systemctl", "service", "kill"]
+                            ),
+                        },
+                    }
+                    payload_hash = hashlib.sha256(
+                        json.dumps(execution_payload, sort_keys=True, separators=(",", ":")).encode()
+                    ).hexdigest()
+                    task = ExecutionTask(
+                        task_id=f"task:{operation_id}:{action.action_id}",
+                        organization_id=(record.environment.organization.organization_id if record.environment.organization else settings.KUBEOPS_DEFAULT_ORGANIZATION_ID),
+                        workspace_id=(record.environment.workspace.workspace_id if record.environment.workspace else settings.KUBEOPS_DEFAULT_WORKSPACE_ID),
+                        operation_id=operation_id,
+                        action_id=action.action_id,
+                        environment_id=record.environment.environment_id,
+                        action_type_id=action.action_type_id,
+                        executor_id=executor_id,
+                        required_capabilities=required_capabilities,
+                        target_fingerprint=record.environment.fingerprint,
+                        status="queued",
+                        priority=int(request.data.get("priority", 0)),
+                        attempt=1,
+                        max_attempts=definition.max_attempts,
+                        idempotency_key=action.idempotency_key,
+                        payload=execution_payload,
+                        payload_hash=payload_hash,
+                        created_at_iso=now,
+                        updated_at_iso=now,
+                    )
+                    tasks.append(task)
+                    ExecutionTaskRecord.objects.update_or_create(
+                        task_id=task.task_id,
+                        defaults={
+                            "organization": record.environment.organization,
+                            "workspace": record.environment.workspace,
+                            "operation": record,
+                            "environment": record.environment,
+                            "action_id": task.action_id,
+                            "action_type_id": task.action_type_id,
+                            "executor_id": task.executor_id,
+                            "status": task.status,
+                            "priority": task.priority,
+                            "payload_hash": task.payload_hash,
+                            "payload": task.model_dump(mode="json"),
+                            "created_at": _dt(task.created_at_iso),
+                            "updated_at": _dt(task.updated_at_iso),
+                        },
+                    )
+        except Exception:
+            mark_governance_usage_terminal(
+                workspace=record.environment.workspace,
+                operation="operation.dispatch",
+                target_id=operation_id,
+            )
+            raise
+        dispatched = runtime.reconcile_external_receipts(authorized, [])
+        dispatched = dispatched.model_copy(
+            update={
+                "metadata": {
+                    **dispatched.metadata,
+                    "distributed": True,
+                    "distributed_execution_mode": requested_mode,
+                    "execution_task_ids": [item.task_id for item in tasks],
+                    "dispatch_governance_decision": governance.model_dump(mode="json"),
+                }
+            }
+        )
+        runtime.store.save(dispatched)
+        updated, artifacts = _persist_operation(
+            dispatched, record.environment, snapshot_record=record.snapshot, incident_record=record.incident
+        )
+        payload = dict(updated.payload)
+        payload["execution_tasks"] = [item.model_dump(mode="json") for item in tasks]
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class OperationDistributedVerifyView(APIView):
+    required_capabilities = {"operation.execute"}
+
+    def post(self, request: Request, operation_id: str) -> Response:
+        record = get_object_or_404(OperationRecord, operation_id=operation_id)
+        operation = _operation(record)
+        if operation.status != "verifying":
+            return Response(
+                {"detail": f"operation cannot be verified from {operation.status}"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        environment = _environment(record.environment)
+        profile_ids = request.data.get("profile_ids") or environment.operational_profile_ids
+        try:
+            workspace_id = _record_workspace_id(record.environment)
+            profiles = [profile_registry_for_workspace(workspace_id).get(profile_id) for profile_id in profile_ids]
+            history_records = list(record.environment.snapshots.all()[:20])
+            history = [_snapshot(item) for item in reversed(history_records)]
+            previous = history[-1] if history else None
+            result = environment_intelligence_for_workspace(workspace_id).collect(
+                environment,
+                method_id=request.data.get("method_id"),
+                resource_types=request.data.get("resource_types"),
+                profiles=profiles,
+                history=history,
+            )
+        except (KeyError, OSError, ValueError, TimeoutError) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        snapshot_diff = diff_snapshots(previous, result.snapshot) if previous else None
+        snapshot_record, snapshot_artifacts = _persist_snapshot(
+            record.environment, result.bundle, result.snapshot, result.topology, result.assessments, snapshot_diff
+        )
+        world = _snapshot_world(result.snapshot)
+        verification_mode = (
+            "live"
+            if operation.mode != "dry_run"
+            and operation.metadata.get("distributed_execution_mode") == "live"
+            else "simulation"
+        )
+        context = RuntimeContext(
+            policy_context=PolicyContext(
+                environment_class=record.environment.environment_class,
+                environment_fingerprint=record.environment.fingerprint,
+                expected_fingerprint=record.environment.fingerprint,
+                capabilities=frozenset(),
+            ),
+            execution_context=ExecutionContext(
+                operation_id=operation.operation_id,
+                mode=verification_mode,
+                environment_id=record.environment.environment_id,
+                simulation_world=world,
+                metadata={"verification_snapshot_id": result.snapshot.snapshot_id},
+            ),
+            world_provider=lambda: world,
+            relationships_provider=lambda: result.snapshot.relationships,
+        )
+        try:
+            runtime = operation_runtime_for_workspace(_record_workspace_id(record.environment))
+            finished = runtime.verify_external(operation, context)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        finished = finished.model_copy(
+            update={
+                "metadata": {
+                    **finished.metadata,
+                    "verification_snapshot_id": result.snapshot.snapshot_id,
+                }
+            }
+        )
+        runtime.store.save(finished)
+        updated, artifacts = _persist_operation(
+            finished, record.environment, snapshot_record=snapshot_record, incident_record=record.incident
+        )
+        payload = dict(updated.payload)
+        payload["verification_snapshot"] = result.snapshot.model_dump(mode="json")
+        payload["snapshot_artifacts"] = snapshot_artifacts
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
 class OperationCancelView(APIView):
     def post(self, request: Request, operation_id: str) -> Response:
         record = get_object_or_404(OperationRecord, operation_id=operation_id)
         try:
-            operation = operation_runtime().cancel(
+            operation = operation_runtime_for_workspace(_record_workspace_id(record.environment)).cancel(
                 _operation(record), request.data.get("reason", "Cancelled by operator")
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        if record.environment.workspace is not None:
+            mark_governance_usage_terminal(
+                workspace=record.environment.workspace, operation="operation.dispatch", target_id=operation_id
+            )
         updated, artifacts = _persist_operation(
             operation,
             record.environment,
@@ -1525,7 +1973,9 @@ class OperationPauseView(APIView):
     def post(self, request: Request, operation_id: str) -> Response:
         record = get_object_or_404(OperationRecord, operation_id=operation_id)
         try:
-            operation = operation_runtime().pause(_operation(record), request.data.get("reason", "Paused by operator"))
+            operation = operation_runtime_for_workspace(_record_workspace_id(record.environment)).pause(
+                _operation(record), request.data.get("reason", "Paused by operator")
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
         updated, artifacts = _persist_operation(operation, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)
@@ -1544,7 +1994,9 @@ class OperationResumeView(APIView):
         try:
             policy = policy_registry().get(operation.plan.policy_id or "local-development-guarded.v1")
             context = _runtime_context(operation, record.environment, snapshot, dict(request.data))
-            finished = operation_runtime().resume(operation_id, policy, context)
+            finished = operation_runtime_for_workspace(_record_workspace_id(record.environment)).resume(
+                operation_id, policy, context
+            )
         except (ValueError, PermissionError) as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
         updated, artifacts = _persist_operation(finished, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)
@@ -1562,7 +2014,9 @@ class OperationRollbackView(APIView):
         snapshot = _snapshot(record.snapshot)
         try:
             context = _runtime_context(operation, record.environment, snapshot, dict(request.data))
-            finished = operation_runtime().rollback(operation, context)
+            finished = operation_runtime_for_workspace(_record_workspace_id(record.environment)).rollback(
+                operation, context
+            )
         except PermissionError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
         updated, artifacts = _persist_operation(finished, record.environment, snapshot_record=record.snapshot, incident_record=record.incident)

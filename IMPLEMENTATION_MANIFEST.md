@@ -1,145 +1,135 @@
-# Release 0.5 implementation manifest
+# KubeOps Release 1.0 implementation manifest
 
-Release 0.5 implements the phased-plan checkpoint **Extensible operational
-platform**. Provider and component semantics are now independently versioned
-pack contributions consumed by the common Release 0.1–0.4 kernel.
+## Release boundary
 
-## New packages and modules
+Release 1.0 is delivered as a delta over the complete Release 0.5 repository. The delta contains only added or modified files and preserves all repository-relative paths.
 
-```text
-packages/kubeops_core/kubeops_core/models/pack.py
-packages/kubeops_core/kubeops_core/packs/
-packages/kubeops_pack_sdk/
-```
+## Canonical models added
 
-## Built-in knowledge packs
+### Tenancy
 
-```text
-packs/generic-kubernetes/
-packs/docker-host/
-packs/kind/
-packs/k3s/
-packs/coredns/
-packs/ingress-nginx/
-packs/argocd/
-packs/postgres/
-packs/redis/
-packs/django/
-packs/celery/
-```
+- `OrganizationDefinition`
+- `WorkspaceDefinition`
+- `RoleGrant`
+- `AuthorizationRequest`
+- `AuthorizationDecision`
+- `ScopeBinding`
 
-Each pack contributes only canonical objects and registered handler/executor
-references. No pack-owned arbitrary runtime code is imported.
+### Fleet
 
-## Canonical model changes
+- `FleetMember`
+- `FleetDependency`
+- `FleetDefinition`
+- `FleetEnvironmentStatus`
+- `CommonCauseFinding`
+- `FleetAssessment`
+- `FleetOperationWave`
+- `FleetOperationPlan`
 
-- Pack identity, compatibility, dependency, status, resolution, coverage, and
-  contribution contracts.
-- Entity classifiers and relationship resolvers.
-- Redaction and scenario-coverage contracts.
-- `OperationalEntity.entity_type_lineage` for specialization without generic
-  semantic loss.
-- Registry categories for packs, classifiers, resolvers, verification
-  templates, redaction rules, and pack coverage.
+### Distributed execution
 
-## Runtime integration
+- `ExecutorAgentDefinition`
+- `ExecutorHeartbeat`
+- `ExecutionTask`
+- `TaskLease`
+- `DispatchDecision`
 
-### Discovery
+### Governance
 
-1. Collect read-only source material.
-2. Apply built-in sanitization.
-3. Apply resolved pack redaction.
-4. Normalize canonical resources and entities.
-5. Apply ordered entity classifiers.
-6. Preserve generic type lineage and pack provenance.
+- `RateLimitRule`
+- `ConcurrencyRule`
+- `GovernanceDecision`
+- `RetentionPolicy`
+- `RetentionCandidate`
+- `RetentionPlan`
+- `AuditEvent`
+- `AuditChainVerification`
+- `AuditExport`
 
-### Topology
+### Security and trust
 
-Generic Kubernetes resolvers run first. Pack relationship resolvers then add
-content-addressed, provenance-bearing relationships through registered handler
-IDs.
+- `SecretReference`
+- `SecretResolutionReceipt`
+- `PackSignature`
+- `PackTrustPolicy`
+- `PackVerificationResult`
 
-### Health and diagnosis
+### Platform recovery
 
-Pack operational profiles join the common profile registry. Pack evidence
-intents, collectors, and causal templates join the common diagnostic catalog.
-Component-specific templates are considered only when their supported entity
-types intersect the subject entity’s type lineage.
+- `BackupComponent`
+- `ControlPlaneBackupManifest`
+- `RestoreStep`
+- `ControlPlaneRestorePlan`
+- `UpgradeReadinessCheck`
+- `UpgradeReadinessReport`
 
-### Planning and execution
+### Scheduling
 
-Pack typed actions and lifecycle profiles join the existing guarded catalogs.
-The Release 0.4 policy and execution runtime remains authoritative.
+- `MaintenanceWindow`
+- `ScheduledOperation`
+- `ScheduleDecision`
 
-## Pack resolution safeguards
+## Core services added
 
-- semantic-version compatibility;
-- dependency closure;
-- cycle rejection;
-- required dependency blocking;
-- installed conflict detection;
-- duplicate contribution detection;
-- cross-pack contribution collision rejection;
-- deterministic ordering by dependency, priority, and pack ID;
-- immutable manifest hashes;
-- enabled-subset projection.
+- Hierarchical authorization engine.
+- Fleet assessment and operation-wave planner.
+- Distributed task dispatcher.
+- Audit-chain implementation.
+- Rate/concurrency governor.
+- Retention planner.
+- Schedule and maintenance-window service.
+- Secret-provider abstraction.
+- HMAC and Ed25519 pack signer/verifier.
+- Platform backup/restore/readiness service.
+- S3-compatible artifact store.
 
-## Artifact chain
+## Control-plane additions
 
-`build_pack_artifacts` emits:
+- Release 1.0 relational migration covering 50 canonical projections across the complete control plane.
+- Organization/workspace scoping middleware and permission classes.
+- Object-aware authorization and workspace-filtered querysets.
+- Fleet, executor, governance, audit, retention, scheduling, trust, backup, and recovery APIs.
+- Release 1.0 catalog and default-tenant seeder.
+- Durable executor-agent command.
+- Operation-scheduler command.
+- Platform backup and guarded restore commands.
 
-```text
-knowledge_pack_manifest × N
-pack_resolution
-pack_coverage
-pack_contribution_catalog
-pack_resolution_manifest
-```
+## Deployment additions
 
-All artifacts are content-addressed and can be persisted by the existing
-`FileArtifactStore`.
+- Gunicorn production API container.
+- Multi-stage Vite/Nginx UI container.
+- Complete Helm chart.
+- Migration/seed hook.
+- Distributed executor deployment.
+- Schedule and backup CronJobs.
+- Services, ingress, RBAC, NetworkPolicy, PDBs, PVCs, and HPA.
+- S3 artifact configuration.
+- HTTPS/HSTS configuration.
 
-## Control-plane projection
+## UI additions
 
-Migration `0005_release_05_knowledge_packs.py` creates
-`KnowledgePackRecord`. The canonical manifest remains authoritative; the
-relational record supports filtering, status display, and administration.
+- Token login and tenant-scope state.
+- Fleet Control workbench.
+- Governance & Recovery workbench.
+- Executor, audit, retention, scheduling, backup, and upgrade-readiness views.
 
-`seed_release_05` reconciles installed pack manifests and configured active
-status into that projection.
+## Default data
 
-## UI
+- Demo fleet.
+- Workspace rate/concurrency rules.
+- Retention policy.
+- Maintenance windows.
+- Default pack trust policy.
 
-```text
-ui/src/features/packs/PackWorkbench.tsx
-```
+## Safety properties
 
-The workbench provides resolution, contribution, coverage, and raw-manifest
-views.
-
-## Example fixture
-
-The pack-stack fixture contains a Kind node, CoreDNS, Ingress-NGINX, Argo CD,
-PostgreSQL, Redis, Django, and Celery resources. It verifies that generic
-cluster contracts and component-specific contracts operate together.
-
-## Tests
-
-Release 0.5 tests cover:
-
-- all 11 pack manifests;
-- contribution counts and dependency closure;
-- compatibility rejection;
-- dependency-cycle rejection;
-- cross-pack collision rejection;
-- specialized classification and type lineage;
-- declarative topology resolution;
-- pack redaction;
-- contribution merging into prior registries;
-- component-specific causal-template filtering;
-- generic and specialized health evaluation;
-- provider lifecycle planning;
-- immutable pack artifacts;
-- SDK scaffolding and validation;
-- pack API and seeder contracts;
-- every retained Release 0.1–0.4 unit test.
+- No unrestricted executor or shell-action type.
+- No schedule-owned approval or execution.
+- No fleet bypass of environment policy.
+- No cross-workspace object access by guessed identifiers.
+- No agent identity rebinding.
+- No task-content rebinding.
+- No completion under an expired lease.
+- No trusted-pack implication of executor authority.
+- No destructive retention or restore without explicit global enablement.
+- No full recovery certificate without live semantic verification.

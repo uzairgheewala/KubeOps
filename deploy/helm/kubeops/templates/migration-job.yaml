@@ -1,0 +1,33 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "kubeops.fullname" . }}-migrate-{{ .Release.Revision }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "kubeops.serviceAccountName" . }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          command: ["sh", "-c"]
+          args:
+            - >-
+              python control_plane/manage.py migrate --noinput &&
+              python control_plane/manage.py seed_release_01 &&
+              python control_plane/manage.py seed_release_02 &&
+              python control_plane/manage.py seed_release_04 &&
+              python control_plane/manage.py seed_release_05 &&
+              python control_plane/manage.py seed_release_10
+          envFrom: [{ configMapRef: { name: {{ include "kubeops.fullname" . }}-config } }]
+          env:
+            - { name: DJANGO_SECRET_KEY, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.djangoSecretKeyKey }} } } }
+            - { name: DATABASE_URL, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.databaseUrlKey }} } } }
+            - { name: KUBEOPS_PACK_TRUST_PUBLIC_KEY, valueFrom: { secretKeyRef: { name: {{ .Values.secrets.existingSecret }}, key: {{ .Values.secrets.packTrustPublicKeyKey }}, optional: true } } }
+{{- end }}

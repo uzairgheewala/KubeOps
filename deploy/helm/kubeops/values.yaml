@@ -1,0 +1,141 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+api:
+  image:
+    repository: ghcr.io/example/kubeops-api
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests: { cpu: 250m, memory: 384Mi }
+    limits: { cpu: "1", memory: 1Gi }
+  service:
+    port: 8000
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+ui:
+  image:
+    repository: ghcr.io/example/kubeops-ui
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+  service:
+    port: 8080
+
+executor:
+  enabled: true
+  image:
+    repository: ghcr.io/example/kubeops-api
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  agentId: cluster-executor
+  capabilities: executor.claim,executor.complete,observe
+  executorIds: dry_run,simulation,builtin.wait
+  maxConcurrency: 1
+  resources:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+migration:
+  enabled: true
+
+scheduler:
+  enabled: true
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  batchLimit: 100
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  externalArtifactBackupVerified: false
+  resources:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+
+config:
+  debug: "0"
+  allowedHosts: "kubeops.example.com"
+  corsAllowedOrigins: "https://kubeops.example.com"
+  secureSslRedirect: "0"
+  secureHstsSeconds: "0"
+  secureHstsIncludeSubdomains: "0"
+  secureHstsPreload: "0"
+  defaultOrganizationId: default
+  defaultWorkspaceId: default
+  allowAnonymousRead: "0"
+  liveExecutionEnabled: "0"
+  retentionApplyEnabled: "0"
+  restoreEnabled: "0"
+  auditRequired: "1"
+  enabledPacks: ""
+  packTrustKeyId: release-key
+  artifactBackend: file
+  artifactS3Bucket: ""
+  artifactS3Prefix: kubeops
+  artifactS3Endpoint: ""
+  artifactS3Region: ""
+
+secrets:
+  existingSecret: kubeops-secrets
+  djangoSecretKeyKey: django-secret-key
+  databaseUrlKey: database-url
+  packTrustSecretKey: pack-trust-secret
+  packTrustPublicKeyKey: pack-trust-public-key
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: kubeops.example.com
+  tls:
+    enabled: true
+    secretName: kubeops-tls
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  artifactSize: 20Gi
+  backupSize: 20Gi
+  operationSize: 10Gi
+
+networkPolicy:
+  enabled: true
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "pods/log", "services", "endpoints", "configmaps", "persistentvolumeclaims", "namespaces", "events"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs", "cronjobs"]
+      verbs: ["get", "list", "watch"]

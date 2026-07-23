@@ -40,7 +40,7 @@ class PackDependency(SchemaModel):
 class PackCompatibility(SchemaModel):
     kind: ClassVar[str] = "PackCompatibility"
 
-    kubeops_constraint: str = ">=0.5.0,<1.0.0"
+    kubeops_constraint: str = ">=0.5.0,<2.0.0"
     kubernetes_constraint: str | None = None
     python_constraint: str = ">=3.11"
     provider_constraints: dict[str, str] = Field(default_factory=dict)
@@ -190,6 +190,8 @@ class PackStatus(SchemaModel):
     contribution_counts: dict[str, int] = Field(default_factory=dict)
     issues: list[PackValidationIssue] = Field(default_factory=list)
     manifest_hash: str
+    trust_outcome: str | None = None
+    signature_id: str | None = None
 
 
 class PackResolution(SchemaModel):

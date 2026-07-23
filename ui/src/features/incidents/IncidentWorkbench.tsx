@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent } from "react";
 import { api } from "../../api/client";
 import { ArtifactExplorer } from "../../components/ArtifactExplorer";
 import { Badge } from "../../components/Badge";
@@ -130,12 +131,12 @@ export function IncidentWorkbench() {
         {showOpen && (
           <div className="incident-create-form">
             <label className="field"><span>Environment</span>
-              <select value={selectedEnvironment} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setSelectedEnvironment(event.target.value)}>
+              <select value={selectedEnvironment} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedEnvironment(event.target.value)}>
                 {environments.map((item) => <option key={item.environment_id} value={item.environment_id}>{item.name}</option>)}
               </select>
             </label>
             <label className="field"><span>Operational profile</span>
-              <select value={selectedProfile} onChange={(event: React.ChangeEvent<HTMLSelectElement>) => setSelectedProfile(event.target.value)}>
+              <select value={selectedProfile} onChange={(event: ChangeEvent<HTMLSelectElement>) => setSelectedProfile(event.target.value)}>
                 {profiles.map((item) => <option key={item.profile_id} value={item.profile_id}>{item.title}</option>)}
               </select>
             </label>

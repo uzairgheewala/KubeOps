@@ -1,0 +1,7 @@
+apiVersion: v2
+name: kubeops
+version: 1.0.0
+appVersion: "1.0.0"
+description: Production KubeOps operational intelligence and guarded recovery control plane
+home: https://example.invalid/kubeops
+type: application

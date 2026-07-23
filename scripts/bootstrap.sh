@@ -12,5 +12,6 @@ python control_plane/manage.py seed_release_01
 python control_plane/manage.py seed_release_02
 python control_plane/manage.py seed_release_04
 python control_plane/manage.py seed_release_05
-printf '\nKubeOps Release 0.5 is bootstrapped.\n'
+python control_plane/manage.py seed_release_10
+printf '\nKubeOps Release 1.0 is bootstrapped.\n'
 printf 'Run ./scripts/dev.sh to start API and UI.\n'

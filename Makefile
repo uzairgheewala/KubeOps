@@ -1,4 +1,4 @@
-.PHONY: bootstrap test test-python test-ui api ui dev migrate seed cli format lint clean
+.PHONY: bootstrap test test-python test-ui api ui dev migrate seed cli format lint clean executor scheduler-once platform-backup platform-restore-plan
 
 bootstrap:
 	python -m venv .venv
@@ -9,6 +9,7 @@ bootstrap:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_05
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_10
 
 migrate:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py migrate
@@ -18,6 +19,7 @@ seed:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_02
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_04
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_05
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py seed_release_10
 
 api:
 	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py runserver 0.0.0.0:8000
@@ -44,6 +46,19 @@ lint:
 format:
 	. .venv/bin/activate && ruff format packages control_plane tests
 	cd ui && npm run format
+
+executor:
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py run_executor_agent
+
+scheduler-once:
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py run_operation_scheduler --once
+
+platform-backup:
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py create_platform_backup
+
+platform-restore-plan:
+	@test -n "$(MANIFEST)" || (echo "MANIFEST is required" && exit 1)
+	. .venv/bin/activate && PYTHONPATH=packages/kubeops_core:packages/kubeops_pack_sdk:packages/kubeops_cli:control_plane python control_plane/manage.py restore_platform_backup "$(MANIFEST)"
 
 clean:
 	rm -rf .venv artifacts operations .pytest_cache .mypy_cache .ruff_cache

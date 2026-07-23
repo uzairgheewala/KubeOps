@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 type Props = {
-  children: React.ReactNode;
+  children: ReactNode;
   tone?: "neutral" | "positive" | "negative" | "warning" | "accent";
 };
 
