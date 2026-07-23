@@ -7,6 +7,7 @@ from django.conf import settings
 
 from kubeops_core.artifacts import FileArtifactStore
 from kubeops_core.environments import EnvironmentIntelligenceService
+from kubeops_core.diagnosis import InvestigationService, ScenarioDiagnosisEvaluator, build_builtin_diagnostic_catalog
 from kubeops_core.models.registry import RegistryEntry
 from kubeops_core.profiles import OperationalProfileRegistry
 from kubeops_core.registry import ScenarioFamilyRegistry, build_builtin_catalog
@@ -63,6 +64,39 @@ def registry_catalog():
                 },
             )
         )
+    for intent in diagnostic_catalog().intents():
+        catalog.register(
+            RegistryEntry(
+                registry_key=intent.intent_id,
+                category="evidence_intent",
+                title=intent.title or intent.question,
+                description=intent.question,
+                capabilities={"plan", "collect"},
+                metadata={"risk_class": intent.risk_class, "required_fact_types": intent.required_fact_types},
+            )
+        )
+    for collector in diagnostic_catalog().collectors():
+        catalog.register(
+            RegistryEntry(
+                registry_key=collector.collector_id,
+                category="collector",
+                title=collector.title,
+                description=collector.description,
+                capabilities={"read_only", *collector.supported_modes},
+                metadata={"risk_class": collector.risk_class, "fact_types": collector.fact_types},
+            )
+        )
+    for template in diagnostic_catalog().templates():
+        catalog.register(
+            RegistryEntry(
+                registry_key=template.template_id,
+                category="causal_template",
+                title=template.title,
+                description=template.claim_template,
+                capabilities={"classify", "explain"},
+                metadata={"family_id": template.family_id, "parent_family_id": template.parent_family_id, "specificity": template.specificity},
+            )
+        )
     return catalog
 
 
@@ -74,6 +108,21 @@ def scenario_compiler() -> ScenarioCompiler:
 @lru_cache(maxsize=1)
 def simulation_engine() -> SimulationEngine:
     return SimulationEngine()
+
+
+@lru_cache(maxsize=1)
+def diagnostic_catalog():
+    return build_builtin_diagnostic_catalog()
+
+
+@lru_cache(maxsize=1)
+def investigation_service() -> InvestigationService:
+    return InvestigationService(diagnostic_catalog())
+
+
+@lru_cache(maxsize=1)
+def scenario_diagnosis_evaluator() -> ScenarioDiagnosisEvaluator:
+    return ScenarioDiagnosisEvaluator(diagnostic_catalog())
 
 
 @lru_cache(maxsize=1)
@@ -92,5 +141,8 @@ def clear_service_caches() -> None:
     scenario_compiler.cache_clear()
     registry_catalog.cache_clear()
     simulation_engine.cache_clear()
+    diagnostic_catalog.cache_clear()
+    investigation_service.cache_clear()
+    scenario_diagnosis_evaluator.cache_clear()
     environment_intelligence.cache_clear()
     artifact_store.cache_clear()

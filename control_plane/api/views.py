@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from kubeops_core import __version__ as core_version
-from kubeops_core.artifacts import build_run_artifacts, build_snapshot_artifacts
+from kubeops_core.artifacts import build_incident_artifacts, build_run_artifacts, build_snapshot_artifacts
 from kubeops_core.discovery import diff_snapshots, export_discovery_fixture
 from kubeops_core.health import HealthAssessmentEngine
 from kubeops_core.models import (
@@ -20,14 +20,25 @@ from kubeops_core.models import (
     AccessValidationResult,
     ActionInstance,
     ActionTypeDefinition,
+    CausalEdge,
+    CausalTemplate,
+    CollectorDefinition,
+    CollectorRunResult,
     CompiledOperationalProfile,
+    DiagnosticCaseResult,
+    DiagnosticEvaluationReport,
+    DiagnosticExpectation,
     DiagnosisCertificate,
     DiscoveryBundle,
     EnvironmentDefinition,
     EnvironmentSnapshot,
+    EvidenceCollectionPlan,
+    EvidenceFact,
     EvidenceIntent,
     ExecutionPolicy,
     Hypothesis,
+    IncidentInvestigation,
+    IncidentTimelineEntry,
     InvariantDefinition,
     Observation,
     ObservationProfile,
@@ -39,6 +50,8 @@ from kubeops_core.models import (
     OperationalProfileSpec,
     PolicyDecision,
     ProbeIntent,
+    ProbePlan,
+    ProbeRun,
     RecoveryCertificate,
     RecoveryPlan,
     Relationship,
@@ -59,21 +72,30 @@ from kubeops_core.topology import TopologyCompiler
 from .models import (
     AccessValidationRecord,
     ArtifactRecord,
+    DiagnosisCertificateRecord,
+    EvidenceFactRecord,
     EnvironmentRecord,
     EnvironmentSnapshotRecord,
+    HypothesisRecord,
+    IncidentRecord,
+    IncidentTimelineRecord,
     OperationEventRecord,
     OperationalProfileRecord,
     ProfileAssessmentRecord,
+    ProbeRunRecord,
     ScenarioRunRecord,
     SnapshotEntityRecord,
     SnapshotRelationshipRecord,
 )
 from .services import (
     artifact_store,
+    diagnostic_catalog,
     environment_intelligence,
+    investigation_service,
     profile_registry,
     registry_catalog,
     scenario_compiler,
+    scenario_diagnosis_evaluator,
     scenario_registry,
     simulation_engine,
 )
@@ -273,6 +295,152 @@ def _persist_snapshot(
     ]
 
 
+
+def _persist_incident(
+    snapshot_record: EnvironmentSnapshotRecord,
+    incident: IncidentInvestigation,
+) -> tuple[IncidentRecord, list[dict[str, str]]]:
+    artifacts = build_incident_artifacts(incident)
+    paths = {artifact.artifact_id: artifact_store().put(artifact) for artifact in artifacts}
+    certificate = incident.certificate
+    with transaction.atomic():
+        record, _ = IncidentRecord.objects.update_or_create(
+            incident_id=incident.incident_id,
+            defaults={
+                "environment": snapshot_record.environment,
+                "snapshot": snapshot_record,
+                "profile_id": incident.profile_id,
+                "title": incident.title,
+                "initial_symptom": incident.initial_symptom,
+                "status": incident.status,
+                "certificate_status": certificate.status if certificate else None,
+                "confidence": certificate.confidence if certificate else 0.0,
+                "payload": incident.model_dump(mode="json"),
+                "created_at": _dt(incident.created_at_iso),
+                "updated_at": _dt(incident.updated_at_iso),
+            },
+        )
+        record.evidence_facts.all().delete()
+        record.hypotheses.all().delete()
+        record.probe_runs.all().delete()
+        record.timeline_entries.all().delete()
+        DiagnosisCertificateRecord.objects.filter(incident=record).delete()
+        EvidenceFactRecord.objects.bulk_create(
+            [
+                EvidenceFactRecord(
+                    evidence_id=item.evidence_id,
+                    incident=record,
+                    fact_type=item.fact_type,
+                    collector_id=item.collector_id,
+                    authority=item.authority,
+                    subject_ids=item.subject_ids,
+                    observed_at=_dt(item.observed_at_iso),
+                    payload=item.model_dump(mode="json"),
+                )
+                for item in incident.evidence
+            ],
+            ignore_conflicts=True,
+        )
+        HypothesisRecord.objects.bulk_create(
+            [
+                HypothesisRecord(
+                    hypothesis_id=item.hypothesis_id,
+                    incident=record,
+                    family_id=item.family_id,
+                    status=item.status,
+                    confidence=item.confidence,
+                    subject_ids=item.subject_ids,
+                    payload=item.model_dump(mode="json"),
+                )
+                for item in incident.hypotheses
+            ],
+            ignore_conflicts=True,
+        )
+        ProbeRunRecord.objects.bulk_create(
+            [
+                ProbeRunRecord(
+                    probe_run_id=item.probe_run_id,
+                    incident=record,
+                    probe_id=item.probe.probe_id,
+                    intent_id=item.probe.evidence_intent_id,
+                    status=item.status,
+                    started_at=_dt(item.started_at_iso),
+                    completed_at=_dt(item.completed_at_iso),
+                    payload=item.model_dump(mode="json"),
+                )
+                for item in incident.probe_runs
+            ],
+            ignore_conflicts=True,
+        )
+        IncidentTimelineRecord.objects.bulk_create(
+            [
+                IncidentTimelineRecord(
+                    incident=record,
+                    sequence=item.sequence,
+                    event_type=item.event_type,
+                    occurred_at=_dt(item.occurred_at_iso),
+                    payload=item.model_dump(mode="json"),
+                )
+                for item in incident.timeline
+            ]
+        )
+        if certificate is not None:
+            DiagnosisCertificateRecord.objects.create(
+                certificate_id=certificate.certificate_id,
+                incident=record,
+                status=certificate.status,
+                confidence=certificate.confidence,
+                issued_at=_dt(certificate.issued_at_iso) if certificate.issued_at_iso else None,
+                payload=certificate.model_dump(mode="json"),
+            )
+        ArtifactRecord.objects.filter(scope_type="incident", scope_id=incident.incident_id).delete()
+        ArtifactRecord.objects.bulk_create(
+            [
+                ArtifactRecord(
+                    artifact_id=artifact.artifact_id,
+                    scope_type=artifact.scope_type,
+                    scope_id=artifact.scope_id,
+                    artifact_type=artifact.artifact_type,
+                    content_hash=artifact.payload_hash,
+                    media_type=artifact.media_type,
+                    storage_path=str(paths[artifact.artifact_id]),
+                    derived_from=artifact.derived_from,
+                    metadata=artifact.metadata,
+                )
+                for artifact in artifacts
+            ],
+            ignore_conflicts=True,
+        )
+    return record, [
+        {
+            "artifact_id": artifact.artifact_id,
+            "artifact_type": artifact.artifact_type,
+            "content_hash": artifact.payload_hash,
+        }
+        for artifact in artifacts
+    ]
+
+
+def _incident_summary(record: IncidentRecord) -> dict[str, Any]:
+    payload = record.payload
+    probe_plan = payload.get("probe_plan") or {}
+    return {
+        "incident_id": record.incident_id,
+        "environment_id": record.environment.environment_id,
+        "snapshot_id": record.snapshot.snapshot_id,
+        "profile_id": record.profile_id,
+        "title": record.title,
+        "initial_symptom": record.initial_symptom,
+        "status": record.status,
+        "certificate_status": record.certificate_status,
+        "confidence": record.confidence,
+        "symptom_count": len(payload.get("symptoms", [])),
+        "evidence_count": len(payload.get("evidence", [])),
+        "hypothesis_count": len(payload.get("hypotheses", [])),
+        "recommended_probe_count": len(probe_plan.get("probes", [])),
+        "updated_at": record.updated_at,
+    }
+
 def _environment_summary(record: EnvironmentRecord) -> dict[str, Any]:
     latest_snapshot = record.snapshots.first()
     latest_validation = record.access_validations.first()
@@ -315,13 +483,17 @@ class SystemStatusView(APIView):
         return Response(
             {
                 "service": "kubeops-control-plane",
-                "release": "0.2.0",
+                "release": "0.3.0",
                 "core_version": core_version,
-                "mode": "read_only_intelligence",
+                "mode": "read_only_diagnosis",
                 "status": "ok",
                 "family_count": len(scenario_registry()),
                 "profile_count": len(profile_registry()),
                 "environment_count": EnvironmentRecord.objects.filter(active=True).count(),
+                "incident_count": IncidentRecord.objects.count(),
+                "diagnostic_intent_count": len(diagnostic_catalog().intents()),
+                "diagnostic_collector_count": len(diagnostic_catalog().collectors()),
+                "causal_template_count": len(diagnostic_catalog().templates()),
                 "capabilities": [
                     "canonical_ir",
                     "scenario_compilation",
@@ -338,6 +510,15 @@ class SystemStatusView(APIView):
                     "operational_profiles",
                     "temporal_health",
                     "artifact_persistence",
+                    "evidence_intents",
+                    "collector_planning",
+                    "normalized_evidence",
+                    "deterministic_hypotheses",
+                    "contradiction_analysis",
+                    "parent_family_fallback",
+                    "probe_planning",
+                    "diagnosis_certificates",
+                    "incident_persistence",
                 ],
             }
         )
@@ -354,41 +535,18 @@ class SchemaView(APIView):
     schema_types = {
         model.__name__: model
         for model in [
-            OperationalEntity,
-            Relationship,
-            OperationalObjective,
-            OperationalProfile,
-            InvariantDefinition,
-            Observation,
-            ObservationProfile,
-            EvidenceIntent,
-            Symptom,
-            Hypothesis,
-            ProbeIntent,
-            ScenarioFamily,
-            ScenarioInstance,
-            ScenarioComposition,
-            ActionTypeDefinition,
-            ActionInstance,
-            ExecutionPolicy,
-            PolicyDecision,
-            RecoveryPlan,
-            VerificationCondition,
-            VerificationResult,
-            DiagnosisCertificate,
-            RecoveryCertificate,
-            SimulationRun,
-            RunArtifact,
-            OperationalArtifact,
-            AccessMethodDefinition,
-            EnvironmentDefinition,
-            AccessValidationResult,
-            DiscoveryBundle,
-            EnvironmentSnapshot,
-            SnapshotDiff,
-            TopologyGraph,
-            OperationalProfileSpec,
-            CompiledOperationalProfile,
+            OperationalEntity, Relationship, OperationalObjective, OperationalProfile,
+            InvariantDefinition, Observation, ObservationProfile,
+            EvidenceIntent, CollectorDefinition, EvidenceFact, EvidenceCollectionPlan,
+            CollectorRunResult, Symptom, CausalTemplate, CausalEdge, Hypothesis,
+            ProbeIntent, ProbePlan, ProbeRun, IncidentTimelineEntry, IncidentInvestigation,
+            DiagnosticExpectation, DiagnosticCaseResult, DiagnosticEvaluationReport,
+            DiagnosisCertificate, ScenarioFamily, ScenarioInstance, ScenarioComposition,
+            ActionTypeDefinition, ActionInstance, ExecutionPolicy, PolicyDecision, RecoveryPlan,
+            VerificationCondition, VerificationResult, RecoveryCertificate, SimulationRun,
+            RunArtifact, OperationalArtifact, AccessMethodDefinition, EnvironmentDefinition,
+            AccessValidationResult, DiscoveryBundle, EnvironmentSnapshot, SnapshotDiff,
+            TopologyGraph, OperationalProfileSpec, CompiledOperationalProfile,
             OperationalProfileAssessment,
         ]
     }
@@ -589,6 +747,8 @@ class SnapshotFixtureExportView(APIView):
     def get(self, request: Request, snapshot_id: str) -> Response:
         record = get_object_or_404(
             ArtifactRecord,
+    DiagnosisCertificateRecord,
+    EvidenceFactRecord,
             scope_type="environment_snapshot",
             scope_id=snapshot_id,
             artifact_type="raw_discovery_bundle",
@@ -596,6 +756,161 @@ class SnapshotFixtureExportView(APIView):
         artifact = artifact_store().get(record.scope_id, record.artifact_id)
         bundle = DiscoveryBundle.model_validate(artifact.payload)
         return Response(export_discovery_fixture(bundle, snapshot_id=snapshot_id))
+
+
+class DiagnosticCatalogView(APIView):
+    def get(self, request: Request) -> Response:
+        catalog = diagnostic_catalog()
+        return Response(
+            {
+                "intents": [item.model_dump(mode="json") for item in catalog.intents()],
+                "collectors": [item.model_dump(mode="json") for item in catalog.collectors()],
+                "causal_templates": [item.model_dump(mode="json") for item in catalog.templates()],
+                "counts": {
+                    "intents": len(catalog.intents()),
+                    "collectors": len(catalog.collectors()),
+                    "causal_templates": len(catalog.templates()),
+                },
+                "read_only": all(item.risk_class == "R0" for item in catalog.collectors()),
+            }
+        )
+
+
+class IncidentListView(APIView):
+    def get(self, request: Request) -> Response:
+        queryset = IncidentRecord.objects.select_related("environment", "snapshot").all()
+        environment_id = request.query_params.get("environment_id")
+        incident_status = request.query_params.get("status")
+        if environment_id:
+            queryset = queryset.filter(environment__environment_id=environment_id)
+        if incident_status:
+            queryset = queryset.filter(status=incident_status)
+        return Response([_incident_summary(record) for record in queryset[:250]])
+
+
+class SnapshotIncidentCreateView(APIView):
+    def post(self, request: Request, snapshot_id: str) -> Response:
+        snapshot_record = get_object_or_404(
+            EnvironmentSnapshotRecord.objects.select_related("environment"),
+            snapshot_id=snapshot_id,
+        )
+        profile_id = request.data.get("profile_id")
+        if not profile_id:
+            return Response({"detail": "profile_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            profile = profile_registry().get(profile_id)
+        except KeyError:
+            return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        snapshot = _snapshot(snapshot_record)
+        topology = TopologyCompiler().compile_snapshot(snapshot)
+        history_records = list(
+            snapshot_record.environment.snapshots.filter(captured_at__lte=snapshot_record.captured_at).order_by("captured_at")
+        )
+        incident = investigation_service().open(
+            snapshot,
+            profile,
+            topology=topology,
+            history=[_snapshot(item) for item in history_records],
+            title=request.data.get("title"),
+            initial_symptom=request.data.get("initial_symptom"),
+            evidence_budget=request.data.get("evidence_budget", 5),
+        )
+        _, artifacts = _persist_incident(snapshot_record, incident)
+        payload = incident.model_dump(mode="json")
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class IncidentDetailView(APIView):
+    def get(self, request: Request, incident_id: str) -> Response:
+        record = get_object_or_404(
+            IncidentRecord.objects.select_related("environment", "snapshot"),
+            incident_id=incident_id,
+        )
+        payload = dict(record.payload)
+        payload["artifacts"] = [
+            {
+                "artifact_id": artifact.artifact_id,
+                "artifact_type": artifact.artifact_type,
+                "content_hash": artifact.content_hash,
+                "derived_from": artifact.derived_from,
+            }
+            for artifact in ArtifactRecord.objects.filter(scope_type="incident", scope_id=incident_id)
+        ]
+        return Response(payload)
+
+
+class IncidentProbeRunView(APIView):
+    def post(self, request: Request, incident_id: str, probe_id: str) -> Response:
+        record = get_object_or_404(
+            IncidentRecord.objects.select_related("environment", "snapshot"),
+            incident_id=incident_id,
+        )
+        incident = IncidentInvestigation.model_validate(record.payload)
+        try:
+            profile = profile_registry().get(incident.profile_id)
+        except KeyError:
+            return Response({"detail": "operational profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        snapshot = _snapshot(record.snapshot)
+        topology = TopologyCompiler().compile_snapshot(snapshot)
+        history_records = list(
+            record.environment.snapshots.filter(captured_at__lte=record.snapshot.captured_at).order_by("captured_at")
+        )
+        try:
+            refined = investigation_service().run_probe(
+                incident,
+                probe_id,
+                snapshot,
+                profile,
+                topology=topology,
+                history=[_snapshot(item) for item in history_records],
+                evidence_budget=request.data.get("evidence_budget", 5),
+            )
+        except KeyError:
+            return Response({"detail": "probe not found"}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+        _, artifacts = _persist_incident(record.snapshot, refined)
+        payload = refined.model_dump(mode="json")
+        payload["artifacts"] = artifacts
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class IncidentCertificateView(APIView):
+    def get(self, request: Request, incident_id: str) -> Response:
+        record = get_object_or_404(IncidentRecord, incident_id=incident_id)
+        if not record.payload.get("certificate"):
+            return Response({"detail": "diagnosis certificate not available"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(record.payload["certificate"])
+
+
+class DiagnosisCoverageView(APIView):
+    def get(self, request: Request) -> Response:
+        incidents = list(IncidentRecord.objects.all())
+        hypotheses = list(HypothesisRecord.objects.all())
+        family_counts: dict[str, int] = {}
+        status_counts: dict[str, int] = {}
+        for hypothesis in hypotheses:
+            family_counts[hypothesis.family_id] = family_counts.get(hypothesis.family_id, 0) + 1
+        for incident in incidents:
+            key = incident.certificate_status or "none"
+            status_counts[key] = status_counts.get(key, 0) + 1
+        catalog = diagnostic_catalog()
+        represented = {item.family_id for item in catalog.templates() if not item.generic}
+        observed = set(family_counts)
+        return Response(
+            {
+                "incident_count": len(incidents),
+                "hypothesis_count": len(hypotheses),
+                "certificate_status_counts": dict(sorted(status_counts.items())),
+                "observed_family_counts": dict(sorted(family_counts.items())),
+                "catalog_family_count": len(represented),
+                "observed_catalog_families": sorted(represented & observed),
+                "unobserved_catalog_families": sorted(represented - observed),
+                "collector_count": len(catalog.collectors()),
+                "all_collectors_read_only": all(item.risk_class == "R0" for item in catalog.collectors()),
+            }
+        )
 
 
 # Release 0.1 scenario laboratory endpoints remain stable.
@@ -641,6 +956,37 @@ class ScenarioCompileView(APIView):
         except (ScenarioCompileError, ValueError) as exc:
             return Response({"errors": getattr(exc, "errors", [str(exc)])}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         return Response(scenario.model_dump(mode="json"), status=status.HTTP_201_CREATED)
+
+
+class ScenarioDiagnoseView(APIView):
+    """Compile, simulate, and diagnose a scenario using the read-only Release 0.3 pipeline."""
+
+    def post(self, request: Request) -> Response:
+        payload = request.data
+        try:
+            scenario = scenario_compiler().compile(
+                payload["family_id"],
+                payload.get("bindings", {}),
+                disturbance_id=payload.get("disturbance_id"),
+                observation_profile_id=payload.get("observation_profile_id"),
+                scenario_id=payload.get("scenario_id"),
+                max_time_seconds=int(payload.get("max_time_seconds", 20)),
+            )
+            expectation = DiagnosticExpectation.model_validate(payload.get("expectation", {}))
+        except KeyError as exc:
+            return Response({"errors": [f"missing field {exc.args[0]}"]}, status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError as exc:
+            return _validation_error(exc)
+        except (ScenarioCompileError, ValueError) as exc:
+            return Response({"errors": getattr(exc, "errors", [str(exc)])}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        run = simulation_engine().run(scenario, seed=int(payload.get("seed", 0)))
+        result = scenario_diagnosis_evaluator().evaluate(scenario, run, expectation)
+        response = result.model_dump(mode="json")
+        response["run"] = run.model_dump(mode="json")
+        response["scenario"] = scenario.model_dump(mode="json")
+        response["artifacts"] = _persist_run(scenario, run)
+        return Response(response, status=status.HTTP_201_CREATED)
 
 
 class ScenarioRunView(APIView):

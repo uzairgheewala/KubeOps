@@ -1,91 +1,154 @@
-# KubeOps Release 0.2 — Read-Only Environment Intelligence
+# KubeOps Release 0.3 — Read-Only Diagnosis Workbench
 
 ## Summary
 
-Release 0.2 connects the Release 0.1 operational metamodel to real and recorded
-Kubernetes state without introducing mutation authority. Environments can be
-registered, access can be validated, cluster objects can be sanitized and
-normalized, dependency topology can be compiled, health profiles can be
-evaluated, snapshots can be diffed, and the complete evidence chain can be
-explored through the CLI, API, and UI.
+Release 0.3 adds active, evidence-driven investigation on top of the immutable
+snapshots, topology, and operational profiles delivered in Release 0.2. It
+introduces no mutation authority.
+
+The release can now transform violated invariants into normalized symptoms,
+select bounded R0 collectors, derive reusable causal hypotheses, preserve
+contradictions and uncertainty, recommend discriminating probes, refine an
+incident after probe execution, and issue a structured diagnosis certificate.
+The same pipeline is available against live/fixture snapshots and deterministic
+simulations.
 
 ## Added
 
-### Environment and access model
+### Canonical diagnosis IR
 
-- Versioned `EnvironmentDefinition` and `AccessMethodDefinition` schemas.
-- Fixture, `kubectl`, and explicit-kubeconfig access routes.
-- Target fingerprinting, context/server/version checks, capability reporting,
-  and permission-gap representation.
-- Fixture-backed demo environment with healthy and degraded access methods.
+- `EvidenceIntent`
+- `CollectorDefinition`
+- `EvidenceFact`
+- `EvidenceCollectionPlan`
+- `CollectorRunResult`
+- `Symptom`
+- `CausalTemplate`
+- `CausalEdge`
+- `Hypothesis`
+- `ProbeIntent`
+- `ProbePlan`
+- `ProbeRun`
+- `IncidentTimelineEntry`
+- `IncidentInvestigation`
+- `DiagnosisCertificate`
+- `DiagnosticExpectation`
+- `DiagnosticCaseResult`
+- `DiagnosticEvaluationReport`
 
-### Discovery and snapshots
+All are schema-versioned Pydantic models and participate in the canonical
+registry and JSON Schema API.
 
-- Common discovery-source contract.
-- Bounded read-only `kubectl` source.
-- Deterministic fixture source.
-- Mandatory resource sanitization before canonicalization and persistence.
-- `ResourceDocument`, `DiscoveryBundle`, `EnvironmentSnapshot`, and structural
-  `SnapshotDiff` contracts.
-- Immutable content-addressed snapshot artifact chains.
-- Replayable sanitized fixture export.
+### Evidence and collection
 
-### Topology
+- Semantic evidence intents describe questions rather than commands.
+- Collector definitions declare produced fact types, supported modes, cost,
+  authority, risk, prerequisites, and redaction behavior.
+- All built-in collectors are `R0` and read-only.
+- Collector planning respects evidence budgets and avoids collectors that cannot
+  resolve current hypothesis uncertainty.
+- Evidence facts retain subject, collector, authority, freshness, value,
+  statement, and provenance.
 
-- Generic topology compiler for ownership, control, scheduling, identity,
-  configuration, secrets, storage, Service selectors, EndpointSlices, ingress,
-  and RBAC.
-- Relationship confidence and provenance.
-- Graph warnings for unresolved or inconsistent references.
-- Upstream/downstream traversal-ready `TopologyGraph` representation.
+### Diagnosis
 
-### Operational health
+- Deterministic symptom derivation from operational-profile assessments.
+- Reusable causal-template catalog.
+- Support and contradiction scoring.
+- Parent-family and generic-invariant fallback.
+- Multiple simultaneous hypotheses.
+- Explicit `insufficient_evidence`, `unknown_semantics`, and
+  `multiple_plausible_causes` outcomes.
+- Causal-edge generation and diagnosis certificates.
 
-- Operational-profile registry and compiler.
-- Entity selectors and invariant templates.
-- Graph-aware predicates such as related-entity cardinality.
-- Immediate and temporal evaluation over snapshot history.
-- Required/optional check aggregation with explicit healthy, unhealthy, pending,
-  unknown, and not-applicable states.
-- Seed profiles for cluster observability and local-development usability.
+### Probe planning
 
-### Control plane and UI
+- Missing predicted fact types are computed per unresolved hypothesis.
+- Candidate collectors are filtered by actual fact-production capability.
+- Probe ranking considers information gain, cost, authority, and redundancy.
+- Probe execution appends evidence and receipts, then reruns the deterministic
+  diagnosis pipeline.
 
-- Relational persistence for environments, validations, snapshots, entities,
-  relationships, profiles, assessments, and generalized artifacts.
-- Read-only environment, snapshot, topology, diff, health, profile, and export
-  APIs.
-- Environment registry and onboarding UI.
-- Inventory, topology, health, snapshot history, diff, and artifact workspaces.
-- Release 0.1 scenario and composition workbenches retained.
+### Scenario evaluation
 
-### CLI
+- Deterministic simulation-to-diagnosis adapter.
+- Observation-aware `DiagnosticExpectation` assertions.
+- Case metrics for precision, recall, confidence, and probe count.
+- Aggregate evaluation report support.
+- Declared Release 0.3 basis cases covering full, partial, unknown, and
+  consumer-only observation profiles.
+- Scenario Lab v2 and `/api/v1/scenarios/diagnose`.
 
-- `environment validate` and `environment show`.
-- `snapshot collect`, `snapshot show`, and `snapshot diff`.
-- `profile list`, `profile show`, and `profile evaluate`.
+### Persistence and artifacts
+
+Django projections were added for:
+
+- incidents;
+- evidence facts;
+- hypotheses;
+- probe runs;
+- incident timeline entries;
+- diagnosis certificates.
+
+Every incident persists a content-addressed artifact chain containing the
+canonical investigation, evidence, hypotheses, causal graph, timeline, probes,
+certificate, and manifest.
+
+### API, CLI, and UI
+
+Added API routes for:
+
+- diagnostic catalog;
+- diagnosis coverage;
+- incident creation/list/detail;
+- probe execution;
+- certificate retrieval;
+- simulated diagnostic evaluation.
+
+Added CLI commands:
+
+- `diagnostic catalog`
+- `diagnostic evaluate`
+- `incident open`
+- `incident show`
+- `incident probe`
+
+Added UI capabilities:
+
+- incident rail and snapshot-based incident creation;
+- hypothesis comparison;
+- evidence and contradiction inspection;
+- probe planning and execution;
+- causal/timeline/certificate/artifact views;
+- Scenario Lab diagnostic evaluation.
 
 ## Correctness fixes made during implementation
 
-- EndpointSlice Service ownership now reads Kubernetes label maps directly;
-  label keys containing dots and slashes are never treated as dotted state paths.
-- Fixture export now reconstructs the public replay format instead of exposing
-  an internal discovery-bundle payload.
-- The previously referenced but absent Release 0.1 artifact-store module is now
-  materialized and used by both simulation and environment snapshots.
-- UI TypeScript project references now validate both application and Vite
-  configuration graphs in dependency-constrained environments.
+- Evidence and hypothesis persistence uniqueness is scoped to an incident,
+  preventing IDs from conflicting across separate investigations.
+- Probe selection now requires a collector to produce a currently missing fact
+  type; a broadly related but non-discriminating collector is not scheduled.
+- Incident artifacts include scope in their content-addressed identity, avoiding
+  collisions between structurally similar investigations.
+- Simulation diagnostics preserve partial-observation semantics instead of
+  inferring hidden truth.
+- Scenario evaluation expectations were made observation-aware so a correct
+  parent-family diagnosis under consumer-only evidence is not treated as a
+  failed leaf diagnosis.
+- Scenario Lab TypeScript uses the canonical `DiagnosticCaseResult` rather than
+  a UI-only evaluation shape.
 
 ## Compatibility
 
-- Release 0.1 scenario-family, composition, simulation, artifact, API, and UI
-  contracts remain supported.
-- No existing files are intentionally deleted.
-- The distributed archive is a Release 0.1 → 0.2 delta containing only new and
+- All Release 0.1 and Release 0.2 unit behavior remains supported.
+- The API continues to expose previous scenario, environment, snapshot,
+  topology, health, diff, profile, and artifact routes.
+- No existing repository path is intentionally deleted.
+- The distributed archive is a Release 0.2 → 0.3 delta containing only new and
   modified paths.
 
 ## Deliberate boundary
 
-Release 0.2 is read-only. It does not execute probes requiring mutation, restart
-workloads, patch resources, perform lifecycle transitions, or produce recovery
-plans. Those authority-bearing behaviors remain deferred.
+Release 0.3 can recommend evidence-gathering probes only. It cannot execute
+mutating probes, create recovery plans, approve actions, or change cluster or
+host state.

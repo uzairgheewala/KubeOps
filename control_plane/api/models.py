@@ -197,3 +197,105 @@ class OperationEventRecord(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["run", "sequence"], name="unique_run_event_sequence")
         ]
+
+
+class IncidentRecord(models.Model):
+    incident_id = models.CharField(max_length=255, unique=True)
+    environment = models.ForeignKey(EnvironmentRecord, on_delete=models.CASCADE, related_name="incidents")
+    snapshot = models.ForeignKey(EnvironmentSnapshotRecord, on_delete=models.CASCADE, related_name="incidents")
+    profile_id = models.CharField(max_length=255)
+    title = models.CharField(max_length=512)
+    initial_symptom = models.TextField()
+    status = models.CharField(max_length=64)
+    certificate_status = models.CharField(max_length=64, null=True, blank=True)
+    confidence = models.FloatField(default=0.0)
+    payload = models.JSONField()
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+    persisted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["environment", "updated_at"]),
+            models.Index(fields=["status", "updated_at"]),
+            models.Index(fields=["profile_id", "certificate_status"]),
+        ]
+
+
+class EvidenceFactRecord(models.Model):
+    evidence_id = models.CharField(max_length=255)
+    incident = models.ForeignKey(IncidentRecord, on_delete=models.CASCADE, related_name="evidence_facts")
+    fact_type = models.CharField(max_length=255)
+    collector_id = models.CharField(max_length=255)
+    authority = models.CharField(max_length=32)
+    subject_ids = models.JSONField(default=list)
+    observed_at = models.DateTimeField()
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["fact_type", "evidence_id"]
+        constraints = [models.UniqueConstraint(fields=["incident", "evidence_id"], name="unique_incident_evidence")]
+        indexes = [
+            models.Index(fields=["incident", "fact_type"]),
+            models.Index(fields=["collector_id", "authority"]),
+        ]
+
+
+class HypothesisRecord(models.Model):
+    hypothesis_id = models.CharField(max_length=255)
+    incident = models.ForeignKey(IncidentRecord, on_delete=models.CASCADE, related_name="hypotheses")
+    family_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=32)
+    confidence = models.FloatField(default=0.0)
+    subject_ids = models.JSONField(default=list)
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["-confidence", "family_id"]
+        constraints = [models.UniqueConstraint(fields=["incident", "hypothesis_id"], name="unique_incident_hypothesis")]
+        indexes = [
+            models.Index(fields=["incident", "status"]),
+            models.Index(fields=["family_id", "status"]),
+        ]
+
+
+class ProbeRunRecord(models.Model):
+    probe_run_id = models.CharField(max_length=255, unique=True)
+    incident = models.ForeignKey(IncidentRecord, on_delete=models.CASCADE, related_name="probe_runs")
+    probe_id = models.CharField(max_length=255)
+    intent_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=32)
+    started_at = models.DateTimeField()
+    completed_at = models.DateTimeField()
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["started_at"]
+        indexes = [models.Index(fields=["incident", "started_at"])]
+
+
+class IncidentTimelineRecord(models.Model):
+    incident = models.ForeignKey(IncidentRecord, on_delete=models.CASCADE, related_name="timeline_entries")
+    sequence = models.PositiveIntegerField()
+    event_type = models.CharField(max_length=128)
+    occurred_at = models.DateTimeField()
+    payload = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ["sequence"]
+        constraints = [
+            models.UniqueConstraint(fields=["incident", "sequence"], name="unique_incident_timeline_sequence")
+        ]
+
+
+class DiagnosisCertificateRecord(models.Model):
+    certificate_id = models.CharField(max_length=255, unique=True)
+    incident = models.OneToOneField(IncidentRecord, on_delete=models.CASCADE, related_name="diagnosis_certificate")
+    status = models.CharField(max_length=64)
+    confidence = models.FloatField(default=0.0)
+    issued_at = models.DateTimeField(null=True, blank=True)
+    payload = models.JSONField()
+
+    class Meta:
+        ordering = ["-issued_at"]

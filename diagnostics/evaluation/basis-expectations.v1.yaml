@@ -1,0 +1,90 @@
+schema_version: kubeops.io/diagnostic-basis/v1
+basis_id: release-0.3-diagnostic-basis
+cases:
+  - case_id: controller-full
+    family_id: controller.convergence_failure.v1
+    disturbance_id: controller-stalls
+    observation_profile_id: full
+    expectation:
+      expected_family_ids: [controller.convergence_failure]
+      required_statuses: [multiple_plausible_causes, root_cause_identified]
+      maximum_probe_count: 3
+
+  - case_id: controller-resource-only
+    family_id: controller.convergence_failure.v1
+    disturbance_id: controller-stalls
+    observation_profile_id: resource_only
+    expectation:
+      expected_family_ids: [controller.convergence_failure]
+      required_statuses: [root_cause_identified, failure_class_identified]
+      maximum_probe_count: 3
+
+  - case_id: authentication-full
+    family_id: dependency.authentication_failure.v1
+    disturbance_id: credential-not-applied
+    observation_profile_id: full
+    expectation:
+      expected_family_ids: [dependency.authentication_failure]
+      required_statuses: [root_cause_identified]
+      maximum_probe_count: 4
+
+  - case_id: authentication-consumer-only
+    family_id: dependency.authentication_failure.v1
+    disturbance_id: credential-not-applied
+    observation_profile_id: consumer_only
+    expectation:
+      expected_family_ids: [component.not_serviceable]
+      required_statuses: [failure_class_identified]
+      maximum_probe_count: 5
+
+  - case_id: authentication-unknown-provider-degradation
+    family_id: dependency.authentication_failure.v1
+    disturbance_id: generic-provider-degradation
+    observation_profile_id: full
+    expectation:
+      required_statuses: [unknown_semantics]
+      maximum_probe_count: 1
+
+  - case_id: reachability-full
+    family_id: dependency.endpoint_unreachable.v1
+    disturbance_id: endpoint-unreachable
+    observation_profile_id: full
+    expectation:
+      expected_family_ids: [dependency.endpoint_unreachable]
+      required_statuses: [root_cause_identified]
+      maximum_probe_count: 4
+
+  - case_id: reachability-consumer-only
+    family_id: dependency.endpoint_unreachable.v1
+    disturbance_id: endpoint-unreachable
+    observation_profile_id: consumer_only
+    expectation:
+      expected_family_ids: [component.not_serviceable]
+      required_statuses: [failure_class_identified]
+      maximum_probe_count: 4
+
+  - case_id: reachability-unknown-provider-degradation
+    family_id: dependency.endpoint_unreachable.v1
+    disturbance_id: generic-provider-degradation
+    observation_profile_id: consumer_only
+    expectation:
+      required_statuses: [insufficient_evidence]
+      maximum_probe_count: 3
+
+  - case_id: required-entity-full
+    family_id: entity.required_absent.v1
+    disturbance_id: required-entity-omitted
+    observation_profile_id: full
+    expectation:
+      expected_family_ids: [entity.required_absent]
+      required_statuses: [root_cause_identified]
+      maximum_probe_count: 3
+
+  - case_id: required-entity-consumer-only
+    family_id: entity.required_absent.v1
+    disturbance_id: required-entity-omitted
+    observation_profile_id: consumer_only
+    expectation:
+      expected_family_ids: [component.not_serviceable]
+      required_statuses: [failure_class_identified]
+      maximum_probe_count: 3

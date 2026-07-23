@@ -1,23 +1,27 @@
 {
   "schema_version": "kubeops.io/delta-manifest/v1",
-  "base_release": "0.1.0",
-  "target_release": "0.2.0",
-  "archive_layout": "repository-relative paths; overlay onto the Release 0.1 repository root",
-  "payload_file_count": 78,
-  "new_file_count": 41,
-  "modified_file_count": 37,
+  "base_release": "0.2.0",
+  "target_release": "0.3.0",
+  "archive_layout": "repository-relative paths; overlay onto the Release 0.2 repository root",
+  "payload_file_count": 46,
+  "new_file_count": 16,
+  "modified_file_count": 30,
   "deleted_paths": [],
   "application": [
-    "Start from an unmodified or compatible KubeOps Release 0.1 checkout.",
+    "Start from an unmodified or compatible KubeOps Release 0.2 checkout.",
     "Extract the delta archive into the repository root and replace files with matching paths.",
-    "Run the Release 0.2 bootstrap or apply Django migrations and seed_release_02."
+    "Run the Release 0.3 bootstrap or apply Django migrations through 0003_release_03_read_only_diagnosis."
   ],
   "validation_summary": {
-    "unit_tests_passed": 30,
-    "randomized_environment_passes": 100,
-    "fixture_entities": 26,
-    "fixture_relationships": 30,
-    "typescript_project_graph": "passed with temporary dependency shims outside delivered source",
+    "unit_tests_passed": 39,
+    "declared_diagnostic_basis_cases": 10,
+    "scenario_diagnosis_combinations": 25,
+    "randomized_fixture_investigations": 100,
+    "builtin_evidence_intents": 10,
+    "builtin_collectors": 13,
+    "builtin_causal_templates": 13,
+    "all_collectors_read_only": true,
+    "typescript_project_graph": "passed with temporary dependency shims removed before delivery",
     "dependency_gated": [
       "Django/DRF runtime integration",
       "Hypothesis suite",
@@ -26,472 +30,280 @@
   },
   "files": [
     {
-      "path": ".env.example",
-      "change_type": "modified",
-      "size": 269,
-      "sha256": "44bd18bd285d661797d7d01cc9fd9418b6d96ded5581b3edee7dcc3c916ec01f"
-    },
-    {
-      "path": ".github/workflows/ci.yml",
-      "change_type": "modified",
-      "size": 1553,
-      "sha256": "50824100e3eb3adae7b166c325171ed5ed76d6cc13356301e7e6428c37efaacc"
-    },
-    {
       "path": "IMPLEMENTATION_MANIFEST.md",
       "change_type": "modified",
-      "size": 2920,
-      "sha256": "210bcb140ac852d11e771499f5702d7c919b79d0fdc384f15a550b5486585242"
-    },
-    {
-      "path": "Makefile",
-      "change_type": "modified",
-      "size": 1975,
-      "sha256": "b0a0c0f71d20581d878300082cf821234e5ca39739ec3c57c95b7ef159d3204a"
+      "size": 4295,
+      "sha256": "4ddad4176a5bc7e06cf3059ea60a9206b1809d1905e91544220f5e69bbb80a9e"
     },
     {
       "path": "README.md",
       "change_type": "modified",
-      "size": 10099,
-      "sha256": "7b179e668100c5f12bd1ac80cf6ac295cbdf48d658ec9c0ae94843b5281c5b79"
+      "size": 11034,
+      "sha256": "ee5cba18b6824b95b69e310e5a9e8523ff5dd90d64a484b78fb9f5774106e8ff"
     },
     {
       "path": "RELEASE_NOTES.md",
       "change_type": "modified",
-      "size": 3803,
-      "sha256": "9cd06c5527e7dd0d73fa04cc2de3c5ed78b595676ffc5751d77f024b10ad69ba"
+      "size": 5205,
+      "sha256": "5f478c795b0346e558dbe9186e25abc92953672f6b9993b02a0cc6db9c283f88"
     },
     {
       "path": "SOURCE_MANIFEST.json",
       "change_type": "modified",
-      "size": 28576,
-      "sha256": "3c94899499f23f219666e1366b76815baff0e90cd824783f09020d8d194f6c1b"
+      "size": 31508,
+      "sha256": "8edfde1482f72960c3be693291c9d9a3574f1f02d1fc1630d1c0ff2864ffa3b9"
     },
     {
       "path": "VALIDATION.md",
       "change_type": "modified",
-      "size": 3588,
-      "sha256": "6301e1447253ba0986d8a333b640925f89e87f01406c99309c64d7f89e92f2d6"
+      "size": 6338,
+      "sha256": "d897993b02c3c2655359f9ba53ce4cdb4acf785aec57a87558b618340b05d2aa"
     },
     {
-      "path": "control_plane/Dockerfile",
-      "change_type": "modified",
-      "size": 644,
-      "sha256": "8720e9008793329cca9addf8eb196502e0eebbb1484ac8bd84347c63114fdd7e"
-    },
-    {
-      "path": "control_plane/api/management/commands/seed_release_02.py",
+      "path": "control_plane/api/migrations/0003_release_03_read_only_diagnosis.py",
       "change_type": "new",
-      "size": 3581,
-      "sha256": "76bd4d37126a2cfc874443477d409c4491d82c1fd380798b4bb4233b58389f41"
-    },
-    {
-      "path": "control_plane/api/migrations/0002_release_02_read_only_intelligence.py",
-      "change_type": "new",
-      "size": 10552,
-      "sha256": "e288ce190505a3bc5b60eb738d8c7b188d28002b2d5441b70676cd8ee6041fa9"
+      "size": 7320,
+      "sha256": "11a021fc45c1b164ea326526d3261c4efd8ce1c42711bc966f2727c8e6872399"
     },
     {
       "path": "control_plane/api/models.py",
       "change_type": "modified",
-      "size": 8394,
-      "sha256": "b98843358057569c4373565516ba595615e317562ed05c3bedfc892068c5104e"
+      "size": 12609,
+      "sha256": "1fd7c3f8bdf8ddc888611064c8bc54f478f76f1efb2545c53a262a98d3ab81f5"
     },
     {
       "path": "control_plane/api/services.py",
       "change_type": "modified",
-      "size": 3136,
-      "sha256": "64eabeeaf2b71d0e558bee9c5c011df1ecc19ee7900760f1a65cdb6f4aa16114"
+      "size": 5234,
+      "sha256": "86562f66abfcffc461e0a0d5a3a4b00474c3866838382f6a917a238f83a2716f"
     },
     {
       "path": "control_plane/api/urls.py",
       "change_type": "modified",
-      "size": 2985,
-      "sha256": "f6e5414c43e9e5ca3b7d110ea5763bec01bed2ee590507cb77e1dc2c843b369f"
+      "size": 4006,
+      "sha256": "ba2141dfbd46a0519b245ba0b71588cc186c081ce919a87ea52b3359238302cd"
     },
     {
       "path": "control_plane/api/views.py",
       "change_type": "modified",
-      "size": 32795,
-      "sha256": "04eea650e7245b383772104c07a13abf82b86715b76bc747943e85c656132e51"
-    },
-    {
-      "path": "control_plane/config/settings.py",
-      "change_type": "modified",
-      "size": 2815,
-      "sha256": "c8dd8acd38ad654a8c9762698e35be522cbaba7fee8cd50748f32c122a7f6b17"
+      "size": 48887,
+      "sha256": "e8acb9bc3ac7c139f6db1d61ca03a5abc9ae632181c5f47addc782b3882fddfc"
     },
     {
       "path": "control_plane/pyproject.toml",
       "change_type": "modified",
       "size": 549,
-      "sha256": "040f0f7267ef373c253a31e0255f6f20c16f4e82d976e46bdaa8ebd9992c35e6"
+      "sha256": "47d32daa2f99dd402b0a2508500ab1aa1c9ab0108006ba0e3ccf3996eb38f226"
     },
     {
-      "path": "docker-compose.yml",
-      "change_type": "modified",
-      "size": 1418,
-      "sha256": "279ab6c86be5c4dd89e62adf132e8333f67293312147c33a22680070f91da48b"
-    },
-    {
-      "path": "docs/adr/0002-read-only-intelligence-boundary.md",
+      "path": "diagnostics/evaluation/basis-expectations.v1.yaml",
       "change_type": "new",
-      "size": 2326,
-      "sha256": "1fd9603c017b527eb73ea796265cee74e3b9d6fe44c24b160f5a68f018b97bee"
+      "size": 3264,
+      "sha256": "cf4d25e4d810b2691d1414fc60660cace60c70aecfd890daab7ed94f63859285"
     },
     {
-      "path": "docs/architecture-release-02.md",
+      "path": "docs/adr/0003-read-only-diagnosis-boundary.md",
       "change_type": "new",
-      "size": 7630,
-      "sha256": "f5e0ea55c2710a2128d3ae098901aa1319f75cf8129f52873972361cbc6545a2"
+      "size": 2583,
+      "sha256": "e5335ffecbbd77f4dc8ec9db6563a7b41b0ba8c141e52570fb76e693d9e3f560"
     },
     {
-      "path": "environments/demo-kind-fixture.v1.yaml",
+      "path": "docs/architecture-release-03.md",
       "change_type": "new",
-      "size": 1027,
-      "sha256": "0ee2aac5f4e760f6efbfcf23d1be65e3e0943ac9a1081503c989707563c493bb"
-    },
-    {
-      "path": "lab/fixtures/kind-demo-degraded.v1.yaml",
-      "change_type": "new",
-      "size": 11394,
-      "sha256": "9916d7e95db6a2f0b7bb267f4941eba0a9820b5237b1bbbcb9f20e5a06a7db66"
-    },
-    {
-      "path": "lab/fixtures/kind-demo-healthy.v1.yaml",
-      "change_type": "new",
-      "size": 11352,
-      "sha256": "6e1ac62cc7da9031990b6fb3eb2850432889788b92f42285eed1a4ccf04161d8"
+      "size": 9347,
+      "sha256": "4f3e90867c5c463b1d176ed0feaa7a62a097537de2f3a0cad6e406ec7688334f"
     },
     {
       "path": "packages/kubeops_cli/kubeops_cli/__init__.py",
       "change_type": "modified",
       "size": 22,
-      "sha256": "667d4a15b970b851e20d17510224670c14646cfb6d5a1e388ca6b9cc6da8bf41"
+      "sha256": "56b5e91c3bb77ab933c25fd65eba883419bdc5691cc94cb9dc840e8f4e3674eb"
     },
     {
       "path": "packages/kubeops_cli/kubeops_cli/main.py",
       "change_type": "modified",
-      "size": 15329,
-      "sha256": "da77cd7d9ef870414654aaf8119ba8c1934404eed4ca92dba4138e4f5c19abdb"
+      "size": 22799,
+      "sha256": "b4da0e6e58159a6f6358d2d2addc7a5b8537e536be6c1f3a5cdd9d1ff0f03162"
     },
     {
       "path": "packages/kubeops_cli/pyproject.toml",
       "change_type": "modified",
       "size": 425,
-      "sha256": "86361bb95a5d2d0be47146da06b6b1c7243bf6993b766d91f8d7b2f4c504a585"
+      "sha256": "e8f0bfe385fea15baa34a8239772459efd8e3749b4a72af85428937308a984d5"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/__init__.py",
       "change_type": "modified",
-      "size": 778,
-      "sha256": "bc74832426bfbef5e5d2ed32910ce2d7da5e90244d4f388cf7a0fed8f088d35c"
+      "size": 850,
+      "sha256": "91f47e15edd2e0508d1511824132454d32978bac1d8b66f9bcf8b5f10a2879af"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/artifacts/__init__.py",
-      "change_type": "new",
-      "size": 168,
-      "sha256": "c66bd74b7ff7e63c784e47e4f505f7204adb54225333f41c6c2d14de477e9136"
+      "change_type": "modified",
+      "size": 222,
+      "sha256": "5376989b5d26d0c2c7039dfd60df79cf6af11fa856b6912671e5246d2b21e6e3"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/artifacts/store.py",
-      "change_type": "new",
-      "size": 7207,
-      "sha256": "03cbd417bc467aab2c622a799af92329903f2ffaf9570069ef1ee977621bae6e"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/__init__.py",
-      "change_type": "new",
-      "size": 449,
-      "sha256": "f13b1305d141a3f8ffaa684c018b978b2de89d41dc338aa3a70eb0f1385d1ed0"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/collector.py",
-      "change_type": "new",
-      "size": 3186,
-      "sha256": "22a3fd93b8ad6aa983644dc319b871626e0c95a6d7ef23e627bb004485e3be1d"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/export.py",
-      "change_type": "new",
-      "size": 1240,
-      "sha256": "a42d785914e3aec0dd316fbf5701dda4e1f32beb52f0a4b8a3633767e43b1afe"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/fixture.py",
-      "change_type": "new",
-      "size": 3930,
-      "sha256": "b733579bf8c39e6f3ef1fcb334ef193cb1136f54566488435a220838907a786e"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/kubectl.py",
-      "change_type": "new",
-      "size": 9173,
-      "sha256": "aa47a1897c92d52166586a5b83cb0058f0a6b49bc2b46caaa5a032c2f0a14879"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/normalize.py",
-      "change_type": "new",
-      "size": 9087,
-      "sha256": "5f40b469d9f62dfba21badd6a0083396a2d6107d6ee80516c4259ab870927b67"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/sanitize.py",
-      "change_type": "new",
-      "size": 1498,
-      "sha256": "160d2d56b07e6e89f9cfe2c3e25db008d2699adefa7b11f57b022f2b21bffda1"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/snapshot.py",
-      "change_type": "new",
-      "size": 5992,
-      "sha256": "6a7115e8bb7b428a307047661c64cebca8e593f2f5495d8adda6e0fd424aee58"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/discovery/source.py",
-      "change_type": "new",
-      "size": 920,
-      "sha256": "7a050c1ba5bf59bc67eb4ca20b251824b39a23631bc03650dc3d9524965ebcee"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/environments/__init__.py",
-      "change_type": "new",
-      "size": 98,
-      "sha256": "f4781bc9affa1643d995527902fa386c2d65a48dcc603fb1ee5561297f802b07"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/environments/service.py",
-      "change_type": "new",
-      "size": 3306,
-      "sha256": "b316436688326c285a25338c522f202e5fa77dd509eeb7e7ece472d6846e6c8c"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/health/__init__.py",
-      "change_type": "new",
-      "size": 117,
-      "sha256": "5a5a5a68bf24d852d7afc8e739344f5d27a2b8422922adad7afe6ff7f56271b4"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/health/engine.py",
-      "change_type": "new",
-      "size": 10658,
-      "sha256": "d3896c74cbf837a91f93416e12767c3ff14aeca1b45b01198a5e725e2c84d06b"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/invariants/evaluator.py",
       "change_type": "modified",
-      "size": 14098,
-      "sha256": "9783885efed9eb9fc57bf1bb11e4db3b5654a2ab847c34fb84450bf25a7141e7"
+      "size": 10797,
+      "sha256": "23c394068f0833fdfa56a83c2efb6e35473d80c64c86f690a8d10b8546deb3ec"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/__init__.py",
+      "change_type": "new",
+      "size": 441,
+      "sha256": "e0adbeaf4bf529c53f5619a8919c69cfcfbd5d298692777e28d78dfccb2208fb"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/catalog.py",
+      "change_type": "new",
+      "size": 20895,
+      "sha256": "7a93cf6bf6c202b2c5eb34cc48fde06797c4791d9266088161cb24beb908246f"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/engine.py",
+      "change_type": "new",
+      "size": 20278,
+      "sha256": "0c21bd32a686e402563f0ed4b3357a4eb0c04cd219ccb544406d14085f16a7ec"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/evaluation.py",
+      "change_type": "new",
+      "size": 9907,
+      "sha256": "ffaaff413c3f5ce7911189291f0fbba9f3c2b91e46923a50ff1cb26aa0fb7a7d"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/evidence.py",
+      "change_type": "new",
+      "size": 29536,
+      "sha256": "3f41edc998b6cc854307aa3702b20556c8aeee05c800adbb847ae81d84dcf445"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/probes.py",
+      "change_type": "new",
+      "size": 5295,
+      "sha256": "9813b198a8b1f4264b65700bb653d89ed683ebe4ae24fc87928c587b2d9045a5"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/service.py",
+      "change_type": "new",
+      "size": 13171,
+      "sha256": "cb615a943a49425c31aa159c76236de802a3b5e728e4f666cf255d896ea7c9bc"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/models/__init__.py",
       "change_type": "modified",
-      "size": 1780,
-      "sha256": "473baef2245060f0caa4e9a3242eefdf5af5f572519657eba1eb84c467cc8bf1"
+      "size": 2127,
+      "sha256": "a3891cd4112164506355fc9f66c1a6f633eb8bf545b11371623d34d61d8ecbf5"
     },
     {
-      "path": "packages/kubeops_core/kubeops_core/models/artifact.py",
-      "change_type": "new",
-      "size": 521,
-      "sha256": "8b48f5c99ba09b04da8f243f2b8c801d730fe0f0cbfff702a14599d9c58cd67d"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/models/discovery.py",
-      "change_type": "new",
-      "size": 3793,
-      "sha256": "d50bf5f325edc762e7f3b887cb542e59e37bfb5916ef52b1fed3bbb2d6d80416"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/models/environment.py",
-      "change_type": "new",
-      "size": 4015,
-      "sha256": "93ec76f84e8fa8e890853807491548e3932cace45eec52b6965fccc076a9e956"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/models/health.py",
-      "change_type": "new",
-      "size": 3341,
-      "sha256": "6cb6039c06e9321d8af2008d21aacce4fcfa9a126421cd675467ff27bccae01d"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/models/observation.py",
+      "path": "packages/kubeops_core/kubeops_core/models/diagnosis.py",
       "change_type": "modified",
-      "size": 997,
-      "sha256": "4b67e6f9a2d270e434f8db07a8248d7771f38ec466f12864fd8577882d2958b7"
+      "size": 14482,
+      "sha256": "acebbcaac60271d783540c5b8ea9b0c77a0467e3e25cf744d94c4c72f41127db"
     },
     {
-      "path": "packages/kubeops_core/kubeops_core/models/predicate.py",
+      "path": "packages/kubeops_core/kubeops_core/models/registry.py",
       "change_type": "modified",
-      "size": 2619,
-      "sha256": "c84362377306c6a4b91ab48bc25140a3ef0c17336803ee59c450f57f5f911c91"
+      "size": 987,
+      "sha256": "bda6899417a3f5250a9fe9d4c998e0bb46f91d2c23de0651defa54f2d63a5331"
     },
     {
-      "path": "packages/kubeops_core/kubeops_core/models/topology.py",
-      "change_type": "new",
-      "size": 687,
-      "sha256": "c2fcaf9b85f01ed72a14b1d30e6ea30d77ee9e835a48f43a66c84911e22d093a"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/profiles/__init__.py",
-      "change_type": "new",
-      "size": 91,
-      "sha256": "b9ac15ef72749fb8db581bd889413db159163394000552de38e7facb67448ebc"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/profiles/registry.py",
-      "change_type": "new",
-      "size": 1606,
-      "sha256": "c8ab5bf6b35bb57eef6a0cef7d8dd71e75cde17d23b7fb097c7b4423797dad0d"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/registry/catalog.py",
+      "path": "packages/kubeops_core/kubeops_core/registry/builtins.py",
       "change_type": "modified",
-      "size": 1079,
-      "sha256": "fef9974a6d3819f306d8cdc8c6042a7906ecd50dbaada84cfcaa10195fa93db4"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/topology/__init__.py",
-      "change_type": "new",
-      "size": 71,
-      "sha256": "cf3b375a29b8b5383734b6b03cf419b8a3caf01effefb18de82a7102e9c35f2e"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/topology/compiler.py",
-      "change_type": "new",
-      "size": 16145,
-      "sha256": "788c15fb4a429961ff1560998cd2cdf40d03804bb1b00415253c7dd0664fa4e2"
-    },
-    {
-      "path": "packages/kubeops_core/kubeops_core/util.py",
-      "change_type": "modified",
-      "size": 1740,
-      "sha256": "c33f82796c14e02ab8bec4010de0b99c070a8a4e646d73363a7f878fb7691e58"
+      "size": 4703,
+      "sha256": "34f928d09b6a366cca8c30fd267b811281ae87e577652daf5ccc42bd811e029d"
     },
     {
       "path": "packages/kubeops_core/pyproject.toml",
       "change_type": "modified",
       "size": 410,
-      "sha256": "19b159684afde8860ff47fa66d4b10532042e92eac8b02aa929bcca1218cadab"
-    },
-    {
-      "path": "profiles/cluster-observable.v1.yaml",
-      "change_type": "new",
-      "size": 826,
-      "sha256": "08604d5a030e04093349ca6a5150dca8361e042cbe220146ea67d7854aa510c7"
-    },
-    {
-      "path": "profiles/local-development-usable.v1.yaml",
-      "change_type": "new",
-      "size": 2180,
-      "sha256": "97fb8a3b8dd265e65e32227d6608e7f535b3e3f43cd1704a35dbd1d275511ed6"
+      "sha256": "42ed6e583313f64b8deef4b94c04e4f7b9b6bb8d18d7af314299ae404d3d5f36"
     },
     {
       "path": "scripts/bootstrap.ps1",
       "change_type": "modified",
       "size": 517,
-      "sha256": "a5086807791e29321686cf8f074affacf344acde14a3c84b1e02640510f5a250"
+      "sha256": "145fa84ce0eebecf12b8004cf0485745b8bbfd6f56280cfaef63c6e8b866f682"
     },
     {
       "path": "scripts/bootstrap.sh",
       "change_type": "modified",
       "size": 559,
-      "sha256": "7e0c36e1d5e15ec25e701efb4d3cd1e8387a8add6ed4cbff8984c3a8abb9f1b9"
-    },
-    {
-      "path": "tests/conftest.py",
-      "change_type": "modified",
-      "size": 2318,
-      "sha256": "65b60dc01805d54667e2fc19fa2203a76e026d8370e9a1aff9d553a53d7aa2a8"
+      "sha256": "eb3e572b75e20091140fcba5a35e847fd9e9ab6fb30e872aba0d1d64999b9df6"
     },
     {
       "path": "tests/integration/test_api.py",
       "change_type": "modified",
-      "size": 7042,
-      "sha256": "f3f2c5f9aeb99dd0c9c368cedcd712370bd742342a363270c2cd5cc922439a64"
+      "size": 9231,
+      "sha256": "5d6b2a37b535f24b914cb95ac19981d45f34a4b1f951f39e0a922d4ed33592a1"
     },
     {
-      "path": "tests/property/test_generic_properties.py",
-      "change_type": "modified",
-      "size": 1113,
-      "sha256": "affd126e9dea4b3b8f60fd0709def9013b4218159924227c08db50f0cc1797af"
-    },
-    {
-      "path": "tests/unit/test_release_02_artifacts.py",
+      "path": "tests/unit/test_release_03_artifacts.py",
       "change_type": "new",
-      "size": 959,
-      "sha256": "86ba8033dc230bdd201393b6cbccfe25f0293600e2d47f6140926e6ae667fe90"
+      "size": 1429,
+      "sha256": "8243a3521bb3540dc0cb97d970de2dced676e1f33d72bbf75c5e9b6997b99620"
     },
     {
-      "path": "tests/unit/test_release_02_diff.py",
+      "path": "tests/unit/test_release_03_basis.py",
       "change_type": "new",
-      "size": 814,
-      "sha256": "04f708cbba68933932c94e51de9a4e9a79dc49158fcd376c1dfa0e1d6faa6c84"
+      "size": 1416,
+      "sha256": "46cd559f5c28edc7b7e71b5b6fa8c083ba1ea29228a2f0eb287743808f70116d"
     },
     {
-      "path": "tests/unit/test_release_02_discovery.py",
+      "path": "tests/unit/test_release_03_diagnosis.py",
       "change_type": "new",
-      "size": 2120,
-      "sha256": "df3cee33841e61c5b1fb03975442a616110dee2541d1c01d7c6fc5c2ec0e8198"
+      "size": 4648,
+      "sha256": "b7cf491e5a6721565a3a25927f936e8e72b60170f069888b54797e34663f9ee8"
     },
     {
-      "path": "tests/unit/test_release_02_health.py",
+      "path": "tests/unit/test_release_03_evaluation.py",
       "change_type": "new",
-      "size": 1294,
-      "sha256": "44582aae1f026fb476877fb2463ceefeb6eadc2d1b57a1b7825ebec392aec306"
-    },
-    {
-      "path": "tests/unit/test_release_02_kubectl.py",
-      "change_type": "new",
-      "size": 4600,
-      "sha256": "341ae3b183e03a9f359e6e68aea8f062c7943beb320597a8b937e2b460f43447"
-    },
-    {
-      "path": "tests/unit/test_release_02_topology.py",
-      "change_type": "new",
-      "size": 988,
-      "sha256": "3cbfb7f3cdfed6f0de338af324786497529dcead77afff5f9dae4e64f1874b15"
+      "size": 1695,
+      "sha256": "17e945aad322c8270da87b6ef7730a48e7875d70c64fb9bb8ac114874c6809da"
     },
     {
       "path": "ui/package.json",
       "change_type": "modified",
       "size": 546,
-      "sha256": "5e874dd77e64d2cd21c2f912929976745c784c2323674ce23d0744e0f66822ff"
+      "sha256": "9abde9d15d4e6f9f8b2abec7f1de488c2f15329c32fb34f4a0acb09dcc0c6128"
     },
     {
       "path": "ui/src/App.tsx",
       "change_type": "modified",
-      "size": 3142,
-      "sha256": "d24509553b4d71121fdb98f020a8bf66989516b3114186f8e2c5ef16b5e3d7a2"
+      "size": 3533,
+      "sha256": "86b8dc57de9f5d79292e39539f7957262ae546d2fcdf4d046f7c1fb19d5fc58b"
     },
     {
       "path": "ui/src/api/client.ts",
       "change_type": "modified",
-      "size": 3800,
-      "sha256": "3a799279a8323741d9eacd4ad63d45a6295cfb843faa3b9ee992617125841103"
+      "size": 5007,
+      "sha256": "51be8d743d4231da65ead6a1125a7c762e6d2e5183a3a93102bc875cbb68e349"
     },
     {
-      "path": "ui/src/components/EnvironmentTopology.tsx",
-      "change_type": "new",
-      "size": 8851,
-      "sha256": "06ac99a17ad876453b9ed5eedea5874f524974567b25ee3a4f832eb889c2f250"
+      "path": "ui/src/features/ScenarioLab.tsx",
+      "change_type": "modified",
+      "size": 17922,
+      "sha256": "563eaae09dd3ed98e8f60334cecc3d7d5b4c5376a54841a604565c22e1f43e88"
     },
     {
-      "path": "ui/src/features/environments/EnvironmentWorkbench.tsx",
+      "path": "ui/src/features/incidents/IncidentWorkbench.tsx",
       "change_type": "new",
-      "size": 24808,
-      "sha256": "5b47e67282a59429cfeb1b5f2918f196bd26b8f10ec8018b9cf07d7df446b0ac"
+      "size": 17176,
+      "sha256": "80645b00bbc5a2d45b3a15f04b543100c8761c84c60512857ac27c4ad49d3af2"
     },
     {
       "path": "ui/src/styles.css",
       "change_type": "modified",
-      "size": 21665,
-      "sha256": "a1afd65313507c073de008eff72f39c74faf4b73a6882b65935d5543ad18e1dd"
+      "size": 27118,
+      "sha256": "f230d2abae70da0cb7a2727c2b2ae8fac66a77e2b2dbacbe1b4c5092c947f396"
     },
     {
       "path": "ui/src/types.ts",
       "change_type": "modified",
-      "size": 9310,
-      "sha256": "cef6408bbd0718d58e5ba5244f014c0774a9d31c8c0d11eafa831f74eabdfc87"
+      "size": 14172,
+      "sha256": "2ddd5fbdaad531bfe3cc7d37a296b7cd3cf9d0129d76f28f34bd61fb30f09bf7"
     }
   ]
 }

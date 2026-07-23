@@ -1,104 +1,155 @@
-# Release 0.2 implementation manifest
+# Release 0.3 implementation manifest
 
-Release 0.2 completes the planned read-only environment-intelligence checkpoint
-while preserving every Release 0.1 simulation capability.
+Release 0.3 completes Epoch III of the phased plan: evidence-driven diagnosis,
+active read-only investigation, and scenario-based diagnostic evaluation.
 
-## Phase 5 — Environment registry and access model
-
-Implemented:
-
-- Environment and access-method canonical IR.
-- Fixture, kubectl-context, and explicit-kubeconfig resolution.
-- Read-only validation with target fingerprint, version, capability, and
-  permission-gap results.
-- Django environment and validation persistence.
-- Environment registration UI and CLI.
-
-## Phase 6 — Discovery and snapshot engine
+## Phase 9 — Evidence-intent and collector SDK
 
 Implemented:
 
-- Common `DiscoverySource` and `RawCollection` contracts.
-- Fixture and live `kubectl` collectors.
-- Mandatory Secret and sensitive-field sanitization.
-- Resource normalization into `ResourceDocument`, entity, observation, and base
-  relationship representations.
-- Partial-success issues and permission gaps.
-- Immutable snapshots and content-addressed artifacts.
-- Structural entity/relationship snapshot diffing.
-- Replayable fixture export.
+- Evidence-intent canonical schema.
+- Collector-definition canonical schema.
+- Normalized evidence facts and collection receipts.
+- Collector catalog and registry integration.
+- Collector planning by required fact type, mode, risk, authority, cost, and
+  evidence budget.
+- Fixture/snapshot/topology-backed R0 collector handlers.
+- Explicit unsupported, missing-capability, and failed-collection semantics.
+- Diagnostic catalog API, CLI, and schema exposure.
 
-## Phase 7 — Topology compiler and explorer
+Initial intent coverage includes:
 
-Implemented resolvers for:
+- endpoint path layering;
+- authentication versus authorization;
+- missing dependency or reference;
+- workload placement;
+- controller convergence;
+- Service endpoint/serviceability;
+- container initialization;
+- resource pressure;
+- declared/observed divergence;
+- idempotent cleanup state.
 
-- Namespace containment.
-- Owner references and controller chains.
-- Workload and Pod relationships.
-- Pod scheduling and ServiceAccount identity.
-- ConfigMap, Secret, and PVC references.
-- Service selector matches.
-- EndpointSlice membership.
-- Ingress routing.
-- PV/PVC/StorageClass binding.
-- RoleBinding subject and role references.
-
-UI implementation:
-
-- Inventory explorer.
-- Layered topology graph.
-- Namespace, plane, text, and health filtering.
-- Entity and edge inspectors with provenance.
-
-## Phase 8 — Invariant engine and operational profiles
+## Phase 10 — Diagnosis engine v1
 
 Implemented:
 
-- Entity-selector profile templates.
-- Profile registry and deterministic compilation.
-- Graph-aware predicates.
-- Temporal assessment over snapshot history.
-- Explicit unknown/pending/not-applicable outcomes.
-- Required versus optional aggregation.
-- Cluster-observable and local-development-usable seed profiles.
-- Health matrix and profile assessment API/CLI/UI.
+- Symptom derivation from violated and unknown profile invariants.
+- Generic invariant-family normalization.
+- Reusable causal templates.
+- Deterministic hypothesis generation.
+- Supporting and contradicting evidence sets.
+- Evidence-prediction and missing-fact tracking.
+- Parent-family fallback.
+- Generic operational-invariant fallback.
+- Multi-hypothesis ranking.
+- Causal edges.
+- Diagnosis certificates.
+- Explicit unknown and insufficient-evidence results.
 
-## Persistence and artifacts
+Initial causal-family coverage:
+
+- required entity absent;
+- invalid binding/reference;
+- endpoint unreachable;
+- authentication failure;
+- authorization failure;
+- controller convergence failure;
+- no feasible placement;
+- component not serviceable;
+- resource exhaustion;
+- state divergence;
+- idempotency violation;
+- observability gap;
+- generic operational-invariant violation.
+
+## Phase 11 — Probe planner
+
+Implemented:
+
+- Probe intent construction from unresolved hypotheses.
+- Missing predicted-fact calculation.
+- Candidate collector capability matching.
+- Information-gain scoring.
+- Cost, authority, and redundancy weighting.
+- Evidence-budget enforcement.
+- Probe receipts.
+- Investigation refinement and next-probe replanning.
+- Read-only probe API, CLI, and UI execution.
+
+## Phase 12 — Scenario Lab v2 and diagnostic evaluation
+
+Implemented:
+
+- Simulation-final-state evidence adapter.
+- Scenario-to-operational-profile assessment adapter.
+- Diagnostic expectation schema.
+- Case result and aggregate report schemas.
+- Precision, recall, confidence, status, and probe-count checks.
+- Observation-aware basis expectations.
+- Scenario diagnostic API and CLI.
+- Scenario Lab evaluation panel.
+- Diagnosis coverage endpoint for persisted incidents.
+
+## Persistence
 
 Added relational projections for:
 
-- Environments.
-- Access validations.
-- Environment snapshots.
-- Per-snapshot entities and relationships.
-- Operational profiles.
-- Profile assessments.
-- Generalized operational artifacts.
+- incidents;
+- evidence facts;
+- hypotheses;
+- probe runs;
+- incident timeline entries;
+- diagnosis certificates.
 
-Every collection persists:
+The canonical incident payload remains authoritative while relational
+projections support querying and UI workflows.
 
-- Raw sanitized discovery bundle.
-- Environment snapshot.
-- Topology graph.
-- Profile assessments.
-- Optional diff.
-- Snapshot manifest.
+## Artifact contract
+
+Added immutable artifact types:
+
+- `incident_investigation`
+- `evidence_set`
+- `hypothesis_set`
+- `causal_graph`
+- `incident_timeline`
+- `probe_history`
+- `probe_plan`
+- `diagnosis_certificate`
+- `incident_manifest`
+
+## UI implementation
+
+Added:
+
+- Incidents primary navigation.
+- Snapshot/profile incident-opening flow.
+- Incident summary metrics.
+- Evidence table with authority and contradiction context.
+- Hypothesis tree/cards with support and missing predictions.
+- Probe recommendations and execution.
+- Timeline and causal views.
+- Diagnosis certificate and artifact exploration.
+- Scenario Lab v2 diagnostic evaluation.
 
 ## Compatibility retained
 
-- Canonical scenario IR and schemas.
-- Scenario-family compiler.
+- Canonical scenario IR and family compiler.
 - Composition compiler.
 - Deterministic simulator.
-- Release 0.1 run artifacts.
-- Scenario/Composition Labs.
-- Existing scenario API and CLI commands.
+- Environment registry and access validation.
+- Discovery, sanitization, snapshots, fixture replay, and structural diff.
+- Topology compiler and health profiles.
+- Existing REST, CLI, and web workbenches.
 
 ## Explicit exclusions
 
-- Diagnosis engine.
-- Active probe planning.
-- Mutating collectors.
+- Mutating probes.
+- Recovery planning.
 - Typed action execution.
+- Approval workflows.
 - Startup/shutdown orchestration.
-- Recovery planning or verification.
+- Rollback.
+- Recovery verification.
+- Autonomous repair.

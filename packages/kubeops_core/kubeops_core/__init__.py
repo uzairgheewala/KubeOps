@@ -1,8 +1,9 @@
-"""KubeOps Release 0.2 core package."""
+"""KubeOps Release 0.3 core package."""
 
 from .discovery import DiscoveryCollector, FixtureDiscoverySource, KubectlDiscoverySource
 from .environments import EnvironmentIntelligenceService
 from .health import HealthAssessmentEngine, ProfileCompiler
+from .diagnosis import InvestigationService, ScenarioDiagnosisEvaluator
 from .models import (
     EnvironmentDefinition,
     EnvironmentSnapshot,
@@ -22,4 +23,4 @@ from .topology import TopologyCompiler
 
 __all__ = [name for name in globals() if not name.startswith("_")]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

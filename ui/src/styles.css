@@ -318,3 +318,86 @@ button { color: inherit; }
   .health-matrix { grid-template-columns: 1fr; }
   .snapshot-list > button { align-items: flex-start; flex-direction: column; }
 }
+
+/* Release 0.3 incident diagnosis workbench */
+.incident-workbench { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 72px); }
+.incident-rail { border-right: 1px solid var(--border); padding: 24px 18px; background: color-mix(in srgb, var(--panel) 94%, transparent); }
+.incident-main { min-width: 0; padding: 24px; }
+.incident-create-form { display: grid; gap: 12px; margin: 16px 0; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+.incident-list { display: grid; gap: 8px; margin-top: 16px; }
+.incident-list > button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px; border: 1px solid transparent; border-radius: 12px; background: transparent; color: inherit; text-align: left; }
+.incident-list > button:hover, .incident-list > button.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.incident-list span { display: grid; gap: 3px; min-width: 0; }
+.incident-list strong, .incident-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.incident-list-status { justify-items: end; flex: none; }
+.incident-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.incident-header h1 { margin: 6px 0; }
+.incident-header p { max-width: 820px; margin: 0; color: var(--muted); }
+.incident-header-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.incident-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.metric-grid > div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.metric-grid strong { font-size: 1.7rem; }
+.hypothesis-stack, .probe-stack, .timeline-list { display: grid; gap: 12px; }
+.hypothesis-stack.compact article { padding: 12px; }
+.hypothesis-stack article, .hypothesis-card, .probe-card, .timeline-list article { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: var(--panel); }
+.hypothesis-stack article > div, .hypothesis-card header > div, .probe-card-heading > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.root-hypothesis { border-color: var(--accent) !important; box-shadow: inset 3px 0 0 var(--accent); }
+.hypothesis-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.hypothesis-detail-grid > div { border-top: 1px solid var(--border); padding-top: 10px; }
+.hypothesis-detail-grid h4 { margin: 0 0 8px; }
+.hypothesis-detail-grid p, .hypothesis-detail-grid code { display: block; margin: 6px 0; }
+.causal-workspace { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.causal-column { display: grid; gap: 10px; }
+.causal-column h3 { position: sticky; top: 0; margin: 0; padding: 10px 0; background: var(--background); z-index: 1; }
+.causal-node { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.causal-node.supports { border-left: 3px solid var(--positive); }
+.causal-node.contradicts { border-left: 3px solid var(--negative); }
+.causal-node.hypothesis { border-left: 3px solid var(--accent); }
+.causal-node.symptom { border-left: 3px solid var(--negative); }
+.causal-node.propagation { border-style: dashed; }
+.probe-layout { display: grid; grid-template-columns: 1.2fr .8fr; gap: 20px; }
+.probe-card { display: grid; gap: 10px; }
+.probe-card-heading { display: grid; gap: 8px; }
+.probe-card .button { justify-self: start; }
+.evidence-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 14px; }
+.incident-timeline { display: grid; gap: 0; }
+.incident-timeline article { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 14px; position: relative; padding-bottom: 20px; }
+.incident-timeline article::before { content: ""; position: absolute; left: 20px; top: 32px; bottom: 0; border-left: 1px solid var(--border); }
+.timeline-marker { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); font-weight: 700; }
+.incident-timeline article > div:last-child { display: grid; gap: 7px; min-width: 0; }
+.plain-list { margin: 0; padding-left: 20px; }
+@media (max-width: 1050px) {
+  .incident-workbench { grid-template-columns: 240px minmax(0, 1fr); }
+  .incident-summary-grid, .causal-workspace, .probe-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .incident-workbench { display: block; }
+  .incident-rail { border-right: 0; border-bottom: 1px solid var(--border); }
+  .incident-header { display: grid; }
+  .incident-header-badges { justify-content: flex-start; }
+  .metric-grid, .hypothesis-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.diagnostic-evaluation-panel {
+  border-left: 3px solid var(--accent);
+}
+
+.diagnostic-evaluation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.diagnostic-evaluation-grid > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.muted-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

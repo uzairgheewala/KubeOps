@@ -4,6 +4,10 @@ import type {
   EnvironmentDefinition,
   EnvironmentSnapshot,
   EnvironmentSummary,
+  DiagnosticCatalog,
+  DiagnosticCaseResult,
+  IncidentInvestigation,
+  IncidentSummary,
   OperationalProfileAssessment,
   OperationalProfileSpec,
   RegistrySnapshot,
@@ -45,6 +49,8 @@ export const api = {
     request<ScenarioInstance>("/scenarios/compile", { method: "POST", body: JSON.stringify(payload) }),
   run: (payload: Record<string, unknown>) =>
     request<SimulationRun>("/scenarios/run", { method: "POST", body: JSON.stringify(payload) }),
+  diagnoseScenario: (payload: Record<string, unknown>) =>
+    request<DiagnosticCaseResult>("/scenarios/diagnose", { method: "POST", body: JSON.stringify(payload) }),
   runComposition: (payload: Record<string, unknown>) =>
     request<SimulationRun>("/compositions/run", { method: "POST", body: JSON.stringify(payload) }),
   schema: (name: string) => request<Record<string, unknown>>(`/schemas/${name}`),
@@ -76,5 +82,18 @@ export const api = {
     request<OperationalProfileAssessment[] | OperationalProfileAssessment>(
       `/snapshots/${encodeURIComponent(snapshotId)}/health${profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ""}`
     ),
-  operationalProfiles: () => request<OperationalProfileSpec[]>("/operational-profiles")
+  operationalProfiles: () => request<OperationalProfileSpec[]>("/operational-profiles"),
+  diagnosticCatalog: () => request<DiagnosticCatalog>("/diagnostic-catalog"),
+  incidents: (environmentId?: string) =>
+    request<IncidentSummary[]>(`/incidents${environmentId ? `?environment_id=${encodeURIComponent(environmentId)}` : ""}`),
+  incident: (incidentId: string) => request<IncidentInvestigation>(`/incidents/${encodeURIComponent(incidentId)}`),
+  openIncident: (snapshotId: string, payload: Record<string, unknown>) =>
+    request<IncidentInvestigation>(`/snapshots/${encodeURIComponent(snapshotId)}/incidents`, {
+      method: "POST", body: JSON.stringify(payload)
+    }),
+  runProbe: (incidentId: string, probeId: string, payload: Record<string, unknown> = {}) =>
+    request<IncidentInvestigation>(`/incidents/${encodeURIComponent(incidentId)}/probes/${encodeURIComponent(probeId)}/run`, {
+      method: "POST", body: JSON.stringify(payload)
+    }),
+  diagnosisCoverage: () => request<Record<string, unknown>>("/diagnosis/coverage")
 };

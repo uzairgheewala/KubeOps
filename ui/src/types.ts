@@ -141,6 +141,10 @@ export type SystemStatus = {
   family_count: number;
   profile_count?: number;
   environment_count?: number;
+  incident_count?: number;
+  diagnostic_intent_count?: number;
+  diagnostic_collector_count?: number;
+  causal_template_count?: number;
   capabilities: string[];
 };
 
@@ -360,4 +364,193 @@ export type SnapshotDiff = {
     change_type: "added" | "removed" | "changed";
   }>;
   summary: Record<string, number>;
+};
+
+export type EvidenceFact = {
+  evidence_id: string;
+  fact_type: string;
+  statement: string;
+  value: unknown;
+  subject_ids: string[];
+  intent_id?: string | null;
+  collector_id: string;
+  observed_at_iso: string;
+  authority: string;
+  freshness_seconds: number;
+  source_artifact_ids: string[];
+  attributes: Record<string, unknown>;
+};
+
+export type Symptom = {
+  symptom_id: string;
+  symptom_type: string;
+  statement: string;
+  subject_ids: string[];
+  invariant_id?: string | null;
+  invariant_family?: string | null;
+  health_status?: string | null;
+  causal_role: string;
+  confidence: number;
+  evidence_ids: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type Hypothesis = {
+  hypothesis_id: string;
+  family_id: string;
+  claim: string;
+  template_id?: string | null;
+  parent_hypothesis_id?: string | null;
+  subject_ids: string[];
+  status: string;
+  confidence: number;
+  explains_symptom_ids: string[];
+  unexplained_symptom_ids: string[];
+  supporting_evidence_ids: string[];
+  contradicting_evidence_ids: string[];
+  required_probe_ids: string[];
+  predictions: string[];
+  score_components: Record<string, number>;
+  metadata: Record<string, unknown>;
+};
+
+export type CausalEdge = {
+  edge_id: string;
+  source_id: string;
+  target_id: string;
+  relation: string;
+  statement: string;
+  confidence: number;
+  evidence_ids: string[];
+};
+
+export type ProbeIntent = {
+  probe_id: string;
+  title: string;
+  evidence_intent_id: string;
+  applicable_hypothesis_ids: string[];
+  discriminates_hypothesis_ids: string[];
+  candidate_collector_ids: string[];
+  expected_outcomes: Record<string, string[]>;
+  preconditions: string[];
+  rationale: string;
+  information_gain_score: number;
+  cost_score: number;
+  risk_class: string;
+  status: string;
+  metadata: Record<string, unknown>;
+};
+
+export type ProbePlan = {
+  plan_id: string;
+  incident_id: string;
+  created_at_iso: string;
+  probes: ProbeIntent[];
+  stopping_reason?: string | null;
+  evidence_budget?: number | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ProbeRun = {
+  probe_run_id: string;
+  incident_id: string;
+  probe: ProbeIntent;
+  status: string;
+  started_at_iso: string;
+  completed_at_iso: string;
+  evidence_ids: string[];
+  hypothesis_changes: Record<string, unknown>;
+};
+
+export type DiagnosisCertificate = {
+  certificate_id: string;
+  incident_id: string;
+  issued_at_iso?: string | null;
+  violated_invariant_ids: string[];
+  causal_chain: string[];
+  causal_edges: CausalEdge[];
+  root_cause_hypothesis_ids: string[];
+  ruled_out_hypothesis_ids: string[];
+  unresolved_hypothesis_ids: string[];
+  unresolved_questions: string[];
+  evidence_ids: string[];
+  status: string;
+  confidence: number;
+  nearest_supported_family_ids: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type IncidentTimelineEntry = {
+  sequence: number;
+  occurred_at_iso: string;
+  event_type: string;
+  title: string;
+  subject_ids: string[];
+  artifact_ids: string[];
+  details: Record<string, unknown>;
+};
+
+export type IncidentSummary = {
+  incident_id: string;
+  environment_id: string;
+  snapshot_id: string;
+  profile_id: string;
+  title: string;
+  initial_symptom: string;
+  status: string;
+  certificate_status?: string | null;
+  confidence: number;
+  symptom_count: number;
+  evidence_count: number;
+  hypothesis_count: number;
+  recommended_probe_count: number;
+  updated_at: string;
+};
+
+export type IncidentInvestigation = {
+  incident_id: string;
+  environment_id: string;
+  snapshot_id: string;
+  profile_id: string;
+  title: string;
+  initial_symptom: string;
+  status: string;
+  created_at_iso: string;
+  updated_at_iso: string;
+  assessment_id?: string | null;
+  violated_invariant_ids: string[];
+  symptoms: Symptom[];
+  evidence: EvidenceFact[];
+  hypotheses: Hypothesis[];
+  probe_plan?: ProbePlan | null;
+  probe_runs: ProbeRun[];
+  causal_edges: CausalEdge[];
+  timeline: IncidentTimelineEntry[];
+  certificate?: DiagnosisCertificate | null;
+  metadata: Record<string, unknown>;
+  artifacts?: ArtifactSummary[];
+};
+
+export type DiagnosticCatalog = {
+  intents: Array<Record<string, unknown>>;
+  collectors: Array<Record<string, unknown>>;
+  causal_templates: Array<Record<string, unknown>>;
+  counts: { intents: number; collectors: number; causal_templates: number };
+  read_only: boolean;
+};
+
+export type DiagnosticCaseResult = {
+  case_id: string;
+  scenario_id: string;
+  passed: boolean;
+  certificate_status: string;
+  predicted_family_ids: string[];
+  expected_family_ids: string[];
+  probe_count: number;
+  metrics: Record<string, number>;
+  failures: string[];
+  incident?: IncidentInvestigation | null;
+  run?: SimulationRun;
+  scenario?: ScenarioInstance;
+  artifacts?: ArtifactSummary[];
 };

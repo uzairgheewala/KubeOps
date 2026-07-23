@@ -10,19 +10,20 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
-from kubeops_core.artifacts import FileArtifactStore, build_run_artifacts
+from kubeops_core.artifacts import FileArtifactStore, build_incident_artifacts, build_run_artifacts
 from kubeops_core.models.composition import ScenarioComposition
 from kubeops_core.discovery import diff_snapshots
+from kubeops_core.diagnosis import InvestigationService, ScenarioDiagnosisEvaluator, build_builtin_diagnostic_catalog
 from kubeops_core.environments import EnvironmentIntelligenceService
 from kubeops_core.health import HealthAssessmentEngine
-from kubeops_core.models import EnvironmentDefinition, EnvironmentSnapshot
+from kubeops_core.models import DiagnosticExpectation, EnvironmentDefinition, EnvironmentSnapshot, IncidentInvestigation
 from kubeops_core.profiles import OperationalProfileRegistry
 from kubeops_core.models.registry import RegistryEntry
 from kubeops_core.registry import ScenarioFamilyRegistry, build_builtin_catalog
 from kubeops_core.scenarios import ScenarioCompileError, ScenarioCompiler, ScenarioComposer
 from kubeops_core.simulator import SimulationEngine
 
-app = typer.Typer(no_args_is_help=True, help="KubeOps Release 0.2 read-only intelligence and scenario CLI.")
+app = typer.Typer(no_args_is_help=True, help="KubeOps Release 0.3 read-only diagnosis, intelligence, and scenario CLI.")
 family_app = typer.Typer(no_args_is_help=True, help="Inspect scenario families.")
 scenario_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenarios.")
 composition_app = typer.Typer(no_args_is_help=True, help="Compile and execute scenario compositions.")
@@ -30,6 +31,8 @@ registry_app = typer.Typer(no_args_is_help=True, help="Inspect canonical extensi
 environment_app = typer.Typer(no_args_is_help=True, help="Validate environment access definitions.")
 snapshot_app = typer.Typer(no_args_is_help=True, help="Collect, inspect, and compare read-only snapshots.")
 profile_app = typer.Typer(no_args_is_help=True, help="Inspect and evaluate operational profiles.")
+incident_app = typer.Typer(no_args_is_help=True, help="Open and refine read-only incident investigations.")
+diagnostic_app = typer.Typer(no_args_is_help=True, help="Inspect diagnostic intents, collectors, and causal templates.")
 app.add_typer(family_app, name="family")
 app.add_typer(scenario_app, name="scenario")
 app.add_typer(composition_app, name="composition")
@@ -37,6 +40,8 @@ app.add_typer(registry_app, name="registry")
 app.add_typer(environment_app, name="environment")
 app.add_typer(snapshot_app, name="snapshot")
 app.add_typer(profile_app, name="profile")
+app.add_typer(incident_app, name="incident")
+app.add_typer(diagnostic_app, name="diagnostic")
 console = Console()
 
 
@@ -379,6 +384,164 @@ def run_composition(
         store.put(artifact)
     console.print(f"[green]{run.status}[/green] {run.run_id}")
     console.print_json(json.dumps(run.final_summary))
+
+
+@diagnostic_app.command("catalog")
+def show_diagnostic_catalog(
+    category: str | None = typer.Option(None, help="intent, collector, or template"),
+) -> None:
+    catalog = build_builtin_diagnostic_catalog()
+    rows: list[tuple[str, str, str, str]] = []
+    if category in {None, "intent"}:
+        rows.extend(("intent", item.intent_id, item.title, item.risk_class) for item in catalog.intents())
+    if category in {None, "collector"}:
+        rows.extend(("collector", item.collector_id, item.title, item.risk_class) for item in catalog.collectors())
+    if category in {None, "template"}:
+        rows.extend(("template", item.template_id, item.title, "generic" if item.generic else str(item.specificity)) for item in catalog.templates())
+    table = Table(title="KubeOps diagnostic catalog")
+    table.add_column("Category")
+    table.add_column("Identifier")
+    table.add_column("Title")
+    table.add_column("Risk / specificity")
+    for row in rows:
+        table.add_row(*row)
+    console.print(table)
+
+
+@diagnostic_app.command("evaluate")
+def evaluate_scenario_diagnosis(
+    family_id: str,
+    binding: list[str] = typer.Option([], "--binding", "-b"),
+    disturbance: str | None = typer.Option(None),
+    observation_profile: str | None = typer.Option(None),
+    expected_family: list[str] = typer.Option([], "--expected-family"),
+    maximum_probe_count: int | None = typer.Option(None, min=0),
+    output: Path | None = typer.Option(None, help="Optional diagnostic case JSON output."),
+) -> None:
+    compiler = ScenarioCompiler(_registry())
+    try:
+        scenario = compiler.compile(
+            family_id,
+            _parse_bindings(binding),
+            disturbance_id=disturbance,
+            observation_profile_id=observation_profile,
+        )
+    except ScenarioCompileError as exc:
+        for error in exc.errors:
+            console.print(f"[red]{error}[/red]")
+        raise typer.Exit(2)
+    run = SimulationEngine().run(scenario)
+    expectation = DiagnosticExpectation(
+        expected_family_ids=set(expected_family or [family_id.rsplit(".v", 1)[0]]),
+        acceptable_parent_family_ids={"operational.invariant_violation"},
+        maximum_probe_count=maximum_probe_count,
+    )
+    result = ScenarioDiagnosisEvaluator().evaluate(scenario, run, expectation)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    table = Table(title=f"Diagnostic evaluation: {scenario.title}")
+    table.add_column("Metric")
+    table.add_column("Value")
+    table.add_row("Passed", str(result.passed))
+    table.add_row("Certificate", result.certificate_status)
+    table.add_row("Predicted families", ", ".join(result.predicted_family_ids) or "none")
+    table.add_row("Expected families", ", ".join(result.expected_family_ids) or "none")
+    table.add_row("Recommended probes", str(result.probe_count))
+    table.add_row("Precision", str(result.metrics.get("precision", 0.0)))
+    table.add_row("Recall", str(result.metrics.get("recall", 0.0)))
+    console.print(table)
+    for failure in result.failures:
+        console.print(f"[yellow]{failure}[/yellow]")
+    if output:
+        console.print(f"[green]Wrote {output}[/green]")
+    if not result.passed:
+        raise typer.Exit(1)
+
+
+@incident_app.command("open")
+def open_incident(
+    snapshot_path: Path,
+    profile_id: str,
+    output: Path = typer.Option(..., help="Write the canonical IncidentInvestigation JSON here."),
+    artifacts: Path | None = typer.Option(None, help="Optional incident artifact output directory."),
+    title: str | None = typer.Option(None),
+    initial_symptom: str | None = typer.Option(None),
+) -> None:
+    snapshot = _load_model(snapshot_path, EnvironmentSnapshot)
+    profile = _profile_registry().get(profile_id)
+    incident = InvestigationService().open(
+        snapshot,
+        profile,
+        title=title,
+        initial_symptom=initial_symptom,
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(incident.model_dump_json(indent=2), encoding="utf-8")
+    if artifacts:
+        store = FileArtifactStore(artifacts)
+        for artifact in build_incident_artifacts(incident):
+            store.put(artifact)
+    table = Table(title=f"Incident {incident.incident_id}")
+    table.add_column("Metric")
+    table.add_column("Value")
+    table.add_row("Status", incident.status)
+    table.add_row("Certificate", incident.certificate.status if incident.certificate else "none")
+    table.add_row("Symptoms", str(len(incident.symptoms)))
+    table.add_row("Evidence facts", str(len(incident.evidence)))
+    table.add_row("Hypotheses", str(len(incident.hypotheses)))
+    table.add_row("Recommended probes", str(len(incident.probe_plan.probes) if incident.probe_plan else 0))
+    table.add_row("Output", str(output))
+    console.print(table)
+
+
+@incident_app.command("show")
+def show_incident(incident_path: Path) -> None:
+    incident = _load_model(incident_path, IncidentInvestigation)
+    table = Table(title=f"{incident.incident_id}: {incident.title}")
+    table.add_column("Hypothesis")
+    table.add_column("Status")
+    table.add_column("Confidence")
+    table.add_column("Claim")
+    for item in incident.hypotheses:
+        table.add_row(item.family_id, item.status, f"{item.confidence:.2f}", item.claim)
+    console.print(table)
+    if incident.probe_plan and incident.probe_plan.probes:
+        probe_table = Table(title="Recommended probes")
+        probe_table.add_column("Probe ID")
+        probe_table.add_column("Title")
+        probe_table.add_column("Information gain")
+        probe_table.add_column("Collectors")
+        for probe in incident.probe_plan.probes:
+            probe_table.add_row(probe.probe_id, probe.title, f"{probe.information_gain_score:.2f}", ", ".join(probe.candidate_collector_ids))
+        console.print(probe_table)
+
+
+@incident_app.command("probe")
+def run_incident_probe(
+    incident_path: Path,
+    snapshot_path: Path,
+    profile_id: str,
+    probe_id: str,
+    output: Path = typer.Option(...),
+    artifacts: Path | None = typer.Option(None),
+) -> None:
+    incident = _load_model(incident_path, IncidentInvestigation)
+    snapshot = _load_model(snapshot_path, EnvironmentSnapshot)
+    refined = InvestigationService().run_probe(
+        incident,
+        probe_id,
+        snapshot,
+        _profile_registry().get(profile_id),
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(refined.model_dump_json(indent=2), encoding="utf-8")
+    if artifacts:
+        store = FileArtifactStore(artifacts)
+        for artifact in build_incident_artifacts(refined):
+            store.put(artifact)
+    console.print(f"[green]Probe completed.[/green] {len(refined.evidence) - len(incident.evidence)} new evidence facts")
+    console.print(f"Diagnosis: [bold]{refined.certificate.status if refined.certificate else 'none'}[/bold]")
 
 
 if __name__ == "__main__":

@@ -29,10 +29,20 @@ def test_status_profiles_and_family_endpoints(db) -> None:
     status_response = client.get("/api/v1/system/status")
     assert status_response.status_code == 200
     status_payload = status_response.json()
-    assert status_payload["mode"] == "read_only_intelligence"
-    assert status_payload["release"] == "0.2.0"
+    assert status_payload["mode"] == "read_only_diagnosis"
+    assert status_payload["release"] == "0.3.0"
     assert status_payload["profile_count"] >= 2
     assert "immutable_snapshots" in status_payload["capabilities"]
+    assert "probe_planning" in status_payload["capabilities"]
+    assert status_payload["diagnostic_collector_count"] >= 10
+
+    catalog_response = client.get("/api/v1/diagnostic-catalog")
+    assert catalog_response.status_code == 200
+    catalog = catalog_response.json()
+    assert catalog["read_only"] is True
+    assert catalog["counts"]["intents"] >= 8
+    assert catalog["counts"]["collectors"] >= 10
+    assert catalog["counts"]["causal_templates"] >= 10
 
     profiles_response = client.get("/api/v1/operational-profiles")
     assert profiles_response.status_code == 200
@@ -103,6 +113,33 @@ def test_fixture_environment_snapshot_health_diff_and_export(db, repo_root: Path
     assert assessment_by_id["local-development-usable.v1"]["status"] == "unhealthy"
 
     snapshot_id = first["snapshot_id"]
+    incident_response = client.post(
+        f"/api/v1/snapshots/{snapshot_id}/incidents",
+        data={"profile_id": "local-development-usable.v1", "evidence_budget": 4},
+        content_type="application/json",
+    )
+    assert incident_response.status_code == 201
+    incident = incident_response.json()
+    assert incident["violated_invariant_ids"]
+    assert incident["evidence"]
+    assert incident["hypotheses"]
+    assert incident["certificate"]
+    assert incident["artifacts"]
+
+    incident_detail = client.get(f"/api/v1/incidents/{incident['incident_id']}")
+    assert incident_detail.status_code == 200
+    assert incident_detail.json()["incident_id"] == incident["incident_id"]
+
+    if incident.get("probe_plan", {}).get("probes"):
+        probe_id = incident["probe_plan"]["probes"][0]["probe_id"]
+        probe_response = client.post(
+            f"/api/v1/incidents/{incident['incident_id']}/probes/{probe_id}/run",
+            data={"evidence_budget": 4},
+            content_type="application/json",
+        )
+        assert probe_response.status_code == 201
+        assert probe_response.json()["probe_runs"]
+
     export_response = client.get(f"/api/v1/snapshots/{snapshot_id}/export")
     assert export_response.status_code == 200
     exported = export_response.json()
@@ -161,6 +198,23 @@ def test_compile_and_run_persist_artifacts(db) -> None:
     detail_response = client.get(f"/api/v1/runs/{body['run_id']}")
     assert detail_response.status_code == 200
     assert detail_response.json()["final_summary"]["unhealthy_invariants"]
+
+    diagnosis_response = client.post(
+        "/api/v1/scenarios/diagnose",
+        data={
+            **payload,
+            "expectation": {
+                "expected_family_ids": ["dependency.authentication_failure"],
+                "maximum_probe_count": 8,
+            },
+        },
+        content_type="application/json",
+    )
+    assert diagnosis_response.status_code == 201
+    diagnosis = diagnosis_response.json()
+    assert diagnosis["passed"] is True
+    assert "dependency.authentication_failure" in diagnosis["predicted_family_ids"]
+    assert diagnosis["incident"]["certificate"]
 
 
 def test_composition_and_artifact_endpoints(db) -> None:

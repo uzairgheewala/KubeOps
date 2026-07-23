@@ -18,6 +18,10 @@ RegistryCategory = Literal[
     "mutation_type",
     "composition_operator",
     "scenario_family",
+    "operational_profile",
+    "evidence_intent",
+    "collector",
+    "causal_template",
 ]
 
 

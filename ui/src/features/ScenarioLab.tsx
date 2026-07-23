@@ -7,6 +7,7 @@ import { JsonInspector } from "../components/JsonInspector";
 import { Timeline } from "../components/Timeline";
 import { TopologyGraph } from "../components/TopologyGraph";
 import type {
+  DiagnosticCaseResult,
   InvariantEvaluation,
   ScenarioFamily,
   ScenarioInstance,
@@ -36,12 +37,13 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
   const [profileId, setProfileId] = useState("");
   const [scenario, setScenario] = useState<ScenarioInstance | null>(null);
   const [run, setRun] = useState<SimulationRun | null>(null);
+  const [diagnostic, setDiagnostic] = useState<DiagnosticCaseResult | null>(null);
   const [snapshotIndex, setSnapshotIndex] = useState(0);
   const [viewMode, setViewMode] = useState<"observed" | "truth">("observed");
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [selectedInvariant, setSelectedInvariant] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<number | null>(null);
-  const [busy, setBusy] = useState<"compile" | "run" | null>(null);
+  const [busy, setBusy] = useState<"compile" | "run" | "diagnose" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,6 +53,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
     setProfileId(family.default_observation_profile_id);
     setScenario(null);
     setRun(null);
+    setDiagnostic(null);
     setSnapshotIndex(0);
     setSelectedEntity(null);
     setSelectedInvariant(null);
@@ -75,6 +78,7 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
       const result = await api.compile(payload);
       setScenario(result);
       setRun(null);
+      setDiagnostic(null);
       setSnapshotIndex(0);
     } catch (reason) {
       setError((reason as Error).message);
@@ -90,8 +94,41 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
       const result = await api.run(payload);
       setScenario(result.scenario);
       setRun(result);
+      setDiagnostic(null);
       setSnapshotIndex(0);
       setSelectedEvent(null);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const diagnose = async () => {
+    setBusy("diagnose");
+    setError(null);
+    try {
+      const expectedFamily = family.family_id.replace(/\.v\d+$/, "");
+      const result = await api.diagnoseScenario({
+        ...payload,
+        expectation: {
+          expected_family_ids: [expectedFamily],
+          acceptable_parent_family_ids: ["operational.invariant_violation"],
+          required_statuses: [
+            "root_cause_identified",
+            "failure_class_identified",
+            "multiple_plausible_causes",
+            "insufficient_evidence"
+          ],
+          maximum_probe_count: 8
+        }
+      });
+      setDiagnostic(result);
+      if (result.run) {
+        setRun(result.run);
+        setScenario(result.scenario ?? result.run.scenario);
+        setSnapshotIndex(Math.max(0, result.run.snapshots.length - 1));
+      }
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -219,6 +256,9 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
           <button type="button" className="button primary" onClick={execute} disabled={busy !== null}>
             {busy === "run" ? "Running…" : "Run simulation"}
           </button>
+          <button type="button" className="button secondary" onClick={diagnose} disabled={busy !== null}>
+            {busy === "diagnose" ? "Diagnosing…" : "Run diagnostic evaluation"}
+          </button>
         </div>
         {error && <div className="error-banner">{error}</div>}
       </aside>
@@ -317,6 +357,47 @@ export function ScenarioLab({ families }: { families: ScenarioFamily[] }) {
             <Timeline events={run?.timeline ?? []} selectedSequence={selectedEvent} onSelect={onEventSelect} />
           </section>
         </div>
+
+        {diagnostic && (
+          <section className="panel diagnostic-evaluation-panel">
+            <div className="panel-heading compact">
+              <div>
+                <span className="eyebrow">Scenario Lab v2</span>
+                <h2>Diagnostic evaluation</h2>
+              </div>
+              <Badge tone={diagnostic.passed ? "positive" : "warning"}>
+                {diagnostic.passed ? "expectation matched" : "expectation mismatch"}
+              </Badge>
+            </div>
+            <div className="diagnostic-evaluation-grid">
+              <div>
+                <span className="muted-label">Certificate status</span>
+                <strong>{diagnostic.certificate_status.replaceAll("_", " ")}</strong>
+              </div>
+              <div>
+                <span className="muted-label">Predicted families</span>
+                <div className="badge-row">
+                  {diagnostic.predicted_family_ids.map((item) => <Badge key={item} tone="accent">{item}</Badge>)}
+                </div>
+              </div>
+              <div>
+                <span className="muted-label">Evidence efficiency</span>
+                <strong>{diagnostic.probe_count} recommended probes</strong>
+              </div>
+              <div>
+                <span className="muted-label">Precision / recall</span>
+                <strong>{diagnostic.metrics.precision ?? 0} / {diagnostic.metrics.recall ?? 0}</strong>
+              </div>
+            </div>
+            {diagnostic.failures.length > 0 && (
+              <div className="error-banner">{diagnostic.failures.join(" · ")}</div>
+            )}
+            <details>
+              <summary>Inspect generated incident and certificate</summary>
+              <JsonInspector value={diagnostic.incident} />
+            </details>
+          </section>
+        )}
 
         {run && (
           <section className="panel inspector-panel">

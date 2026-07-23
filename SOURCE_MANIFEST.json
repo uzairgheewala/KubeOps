@@ -1,9 +1,9 @@
 {
   "schema_version": "kubeops.io/source-manifest/v1",
-  "release": "0.2.0",
-  "base_release": "0.1.0",
-  "file_count": 165,
-  "total_bytes": 517106,
+  "release": "0.3.0",
+  "base_release": "0.2.0",
+  "file_count": 181,
+  "total_bytes": 735673,
   "files": [
     {
       "path": ".editorconfig",
@@ -27,8 +27,8 @@
     },
     {
       "path": "IMPLEMENTATION_MANIFEST.md",
-      "size": 2920,
-      "sha256": "210bcb140ac852d11e771499f5702d7c919b79d0fdc384f15a550b5486585242"
+      "size": 4295,
+      "sha256": "4ddad4176a5bc7e06cf3059ea60a9206b1809d1905e91544220f5e69bbb80a9e"
     },
     {
       "path": "LICENSE",
@@ -42,18 +42,18 @@
     },
     {
       "path": "README.md",
-      "size": 10099,
-      "sha256": "7b179e668100c5f12bd1ac80cf6ac295cbdf48d658ec9c0ae94843b5281c5b79"
+      "size": 11034,
+      "sha256": "ee5cba18b6824b95b69e310e5a9e8523ff5dd90d64a484b78fb9f5774106e8ff"
     },
     {
       "path": "RELEASE_NOTES.md",
-      "size": 3803,
-      "sha256": "9cd06c5527e7dd0d73fa04cc2de3c5ed78b595676ffc5751d77f024b10ad69ba"
+      "size": 5205,
+      "sha256": "5f478c795b0346e558dbe9186e25abc92953672f6b9993b02a0cc6db9c283f88"
     },
     {
       "path": "VALIDATION.md",
-      "size": 3588,
-      "sha256": "6301e1447253ba0986d8a333b640925f89e87f01406c99309c64d7f89e92f2d6"
+      "size": 6338,
+      "sha256": "d897993b02c3c2655359f9ba53ce4cdb4acf785aec57a87558b618340b05d2aa"
     },
     {
       "path": "control_plane/Dockerfile",
@@ -101,29 +101,34 @@
       "sha256": "e288ce190505a3bc5b60eb738d8c7b188d28002b2d5441b70676cd8ee6041fa9"
     },
     {
+      "path": "control_plane/api/migrations/0003_release_03_read_only_diagnosis.py",
+      "size": 7320,
+      "sha256": "11a021fc45c1b164ea326526d3261c4efd8ce1c42711bc966f2727c8e6872399"
+    },
+    {
       "path": "control_plane/api/migrations/__init__.py",
       "size": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "path": "control_plane/api/models.py",
-      "size": 8394,
-      "sha256": "b98843358057569c4373565516ba595615e317562ed05c3bedfc892068c5104e"
+      "size": 12609,
+      "sha256": "1fd7c3f8bdf8ddc888611064c8bc54f478f76f1efb2545c53a262a98d3ab81f5"
     },
     {
       "path": "control_plane/api/services.py",
-      "size": 3136,
-      "sha256": "64eabeeaf2b71d0e558bee9c5c011df1ecc19ee7900760f1a65cdb6f4aa16114"
+      "size": 5234,
+      "sha256": "86562f66abfcffc461e0a0d5a3a4b00474c3866838382f6a917a238f83a2716f"
     },
     {
       "path": "control_plane/api/urls.py",
-      "size": 2985,
-      "sha256": "f6e5414c43e9e5ca3b7d110ea5763bec01bed2ee590507cb77e1dc2c843b369f"
+      "size": 4006,
+      "sha256": "ba2141dfbd46a0519b245ba0b71588cc186c081ce919a87ea52b3359238302cd"
     },
     {
       "path": "control_plane/api/views.py",
-      "size": 32795,
-      "sha256": "04eea650e7245b383772104c07a13abf82b86715b76bc747943e85c656132e51"
+      "size": 48887,
+      "sha256": "e8acb9bc3ac7c139f6db1d61ca03a5abc9ae632181c5f47addc782b3882fddfc"
     },
     {
       "path": "control_plane/config/__init__.py",
@@ -153,7 +158,12 @@
     {
       "path": "control_plane/pyproject.toml",
       "size": 549,
-      "sha256": "040f0f7267ef373c253a31e0255f6f20c16f4e82d976e46bdaa8ebd9992c35e6"
+      "sha256": "47d32daa2f99dd402b0a2508500ab1aa1c9ab0108006ba0e3ccf3996eb38f226"
+    },
+    {
+      "path": "diagnostics/evaluation/basis-expectations.v1.yaml",
+      "size": 3264,
+      "sha256": "cf4d25e4d810b2691d1414fc60660cace60c70aecfd890daab7ed94f63859285"
     },
     {
       "path": "docker-compose.yml",
@@ -171,6 +181,11 @@
       "sha256": "1fd9603c017b527eb73ea796265cee74e3b9d6fe44c24b160f5a68f018b97bee"
     },
     {
+      "path": "docs/adr/0003-read-only-diagnosis-boundary.md",
+      "size": 2583,
+      "sha256": "e5335ffecbbd77f4dc8ec9db6563a7b41b0ba8c141e52570fb76e693d9e3f560"
+    },
+    {
       "path": "docs/architecture-release-01.md",
       "size": 4104,
       "sha256": "f055e68cd0f03a11e6f52f2a9763241d9837bb7610eee03edafdb51566ab2902"
@@ -179,6 +194,11 @@
       "path": "docs/architecture-release-02.md",
       "size": 7630,
       "sha256": "f5e0ea55c2710a2128d3ae098901aa1319f75cf8129f52873972361cbc6545a2"
+    },
+    {
+      "path": "docs/architecture-release-03.md",
+      "size": 9347,
+      "sha256": "4f3e90867c5c463b1d176ed0feaa7a62a097537de2f3a0cad6e406ec7688334f"
     },
     {
       "path": "environments/demo-kind-fixture.v1.yaml",
@@ -198,32 +218,67 @@
     {
       "path": "packages/kubeops_cli/kubeops_cli/__init__.py",
       "size": 22,
-      "sha256": "667d4a15b970b851e20d17510224670c14646cfb6d5a1e388ca6b9cc6da8bf41"
+      "sha256": "56b5e91c3bb77ab933c25fd65eba883419bdc5691cc94cb9dc840e8f4e3674eb"
     },
     {
       "path": "packages/kubeops_cli/kubeops_cli/main.py",
-      "size": 15329,
-      "sha256": "da77cd7d9ef870414654aaf8119ba8c1934404eed4ca92dba4138e4f5c19abdb"
+      "size": 22799,
+      "sha256": "b4da0e6e58159a6f6358d2d2addc7a5b8537e536be6c1f3a5cdd9d1ff0f03162"
     },
     {
       "path": "packages/kubeops_cli/pyproject.toml",
       "size": 425,
-      "sha256": "86361bb95a5d2d0be47146da06b6b1c7243bf6993b766d91f8d7b2f4c504a585"
+      "sha256": "e8f0bfe385fea15baa34a8239772459efd8e3749b4a72af85428937308a984d5"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/__init__.py",
-      "size": 778,
-      "sha256": "bc74832426bfbef5e5d2ed32910ce2d7da5e90244d4f388cf7a0fed8f088d35c"
+      "size": 850,
+      "sha256": "91f47e15edd2e0508d1511824132454d32978bac1d8b66f9bcf8b5f10a2879af"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/artifacts/__init__.py",
-      "size": 168,
-      "sha256": "c66bd74b7ff7e63c784e47e4f505f7204adb54225333f41c6c2d14de477e9136"
+      "size": 222,
+      "sha256": "5376989b5d26d0c2c7039dfd60df79cf6af11fa856b6912671e5246d2b21e6e3"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/artifacts/store.py",
-      "size": 7207,
-      "sha256": "03cbd417bc467aab2c622a799af92329903f2ffaf9570069ef1ee977621bae6e"
+      "size": 10797,
+      "sha256": "23c394068f0833fdfa56a83c2efb6e35473d80c64c86f690a8d10b8546deb3ec"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/__init__.py",
+      "size": 441,
+      "sha256": "e0adbeaf4bf529c53f5619a8919c69cfcfbd5d298692777e28d78dfccb2208fb"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/catalog.py",
+      "size": 20895,
+      "sha256": "7a93cf6bf6c202b2c5eb34cc48fde06797c4791d9266088161cb24beb908246f"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/engine.py",
+      "size": 20278,
+      "sha256": "0c21bd32a686e402563f0ed4b3357a4eb0c04cd219ccb544406d14085f16a7ec"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/evaluation.py",
+      "size": 9907,
+      "sha256": "ffaaff413c3f5ce7911189291f0fbba9f3c2b91e46923a50ff1cb26aa0fb7a7d"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/evidence.py",
+      "size": 29536,
+      "sha256": "3f41edc998b6cc854307aa3702b20556c8aeee05c800adbb847ae81d84dcf445"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/probes.py",
+      "size": 5295,
+      "sha256": "9813b198a8b1f4264b65700bb653d89ed683ebe4ae24fc87928c587b2d9045a5"
+    },
+    {
+      "path": "packages/kubeops_core/kubeops_core/diagnosis/service.py",
+      "size": 13171,
+      "sha256": "cb615a943a49425c31aa159c76236de802a3b5e728e4f666cf255d896ea7c9bc"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/discovery/__init__.py",
@@ -302,8 +357,8 @@
     },
     {
       "path": "packages/kubeops_core/kubeops_core/models/__init__.py",
-      "size": 1780,
-      "sha256": "473baef2245060f0caa4e9a3242eefdf5af5f572519657eba1eb84c467cc8bf1"
+      "size": 2127,
+      "sha256": "a3891cd4112164506355fc9f66c1a6f633eb8bf545b11371623d34d61d8ecbf5"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/models/action.py",
@@ -327,8 +382,8 @@
     },
     {
       "path": "packages/kubeops_core/kubeops_core/models/diagnosis.py",
-      "size": 3432,
-      "sha256": "59ed0154886c2fcad3f144394d5e8ca5551eef25d62e5d56787e34cf07c41770"
+      "size": 14482,
+      "sha256": "acebbcaac60271d783540c5b8ea9b0c77a0467e3e25cf744d94c4c72f41127db"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/models/discovery.py",
@@ -382,8 +437,8 @@
     },
     {
       "path": "packages/kubeops_core/kubeops_core/models/registry.py",
-      "size": 897,
-      "sha256": "19d1f2b4705e36f9897fdd47fbe7003c7ac6bfdc0705fd680fd3f85bf7a5a630"
+      "size": 987,
+      "sha256": "bda6899417a3f5250a9fe9d4c998e0bb46f91d2c23de0651defa54f2d63a5331"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/models/relationship.py",
@@ -432,8 +487,8 @@
     },
     {
       "path": "packages/kubeops_core/kubeops_core/registry/builtins.py",
-      "size": 4407,
-      "sha256": "298593c259320f53df2d7ba308066a824d8d097fe20f43f180252b85d268f05b"
+      "size": 4703,
+      "sha256": "34f928d09b6a366cca8c30fd267b811281ae87e577652daf5ccc42bd811e029d"
     },
     {
       "path": "packages/kubeops_core/kubeops_core/registry/catalog.py",
@@ -503,7 +558,7 @@
     {
       "path": "packages/kubeops_core/pyproject.toml",
       "size": 410,
-      "sha256": "19b159684afde8860ff47fa66d4b10532042e92eac8b02aa929bcca1218cadab"
+      "sha256": "42ed6e583313f64b8deef4b94c04e4f7b9b6bb8d18d7af314299ae404d3d5f36"
     },
     {
       "path": "profiles/cluster-observable.v1.yaml",
@@ -593,12 +648,12 @@
     {
       "path": "scripts/bootstrap.ps1",
       "size": 517,
-      "sha256": "a5086807791e29321686cf8f074affacf344acde14a3c84b1e02640510f5a250"
+      "sha256": "145fa84ce0eebecf12b8004cf0485745b8bbfd6f56280cfaef63c6e8b866f682"
     },
     {
       "path": "scripts/bootstrap.sh",
       "size": 559,
-      "sha256": "7e0c36e1d5e15ec25e701efb4d3cd1e8387a8add6ed4cbff8984c3a8abb9f1b9"
+      "sha256": "eb3e572b75e20091140fcba5a35e847fd9e9ab6fb30e872aba0d1d64999b9df6"
     },
     {
       "path": "scripts/dev.ps1",
@@ -632,8 +687,8 @@
     },
     {
       "path": "tests/integration/test_api.py",
-      "size": 7042,
-      "sha256": "f3f2c5f9aeb99dd0c9c368cedcd712370bd742342a363270c2cd5cc922439a64"
+      "size": 9231,
+      "sha256": "5d6b2a37b535f24b914cb95ac19981d45f34a4b1f951f39e0a922d4ed33592a1"
     },
     {
       "path": "tests/property/test_generic_properties.py",
@@ -701,6 +756,26 @@
       "sha256": "3cbfb7f3cdfed6f0de338af324786497529dcead77afff5f9dae4e64f1874b15"
     },
     {
+      "path": "tests/unit/test_release_03_artifacts.py",
+      "size": 1429,
+      "sha256": "8243a3521bb3540dc0cb97d970de2dced676e1f33d72bbf75c5e9b6997b99620"
+    },
+    {
+      "path": "tests/unit/test_release_03_basis.py",
+      "size": 1416,
+      "sha256": "46cd559f5c28edc7b7e71b5b6fa8c083ba1ea29228a2f0eb287743808f70116d"
+    },
+    {
+      "path": "tests/unit/test_release_03_diagnosis.py",
+      "size": 4648,
+      "sha256": "b7cf491e5a6721565a3a25927f936e8e72b60170f069888b54797e34663f9ee8"
+    },
+    {
+      "path": "tests/unit/test_release_03_evaluation.py",
+      "size": 1695,
+      "sha256": "17e945aad322c8270da87b6ef7730a48e7875d70c64fb9bb8ac114874c6809da"
+    },
+    {
       "path": "tests/unit/test_simulator.py",
       "size": 1682,
       "sha256": "c6e4e105c38501828c8fa49f6b2294cf7416c62b8628e2ab2b56248447f9531c"
@@ -723,17 +798,17 @@
     {
       "path": "ui/package.json",
       "size": 546,
-      "sha256": "5e874dd77e64d2cd21c2f912929976745c784c2323674ce23d0744e0f66822ff"
+      "sha256": "9abde9d15d4e6f9f8b2abec7f1de488c2f15329c32fb34f4a0acb09dcc0c6128"
     },
     {
       "path": "ui/src/App.tsx",
-      "size": 3142,
-      "sha256": "d24509553b4d71121fdb98f020a8bf66989516b3114186f8e2c5ef16b5e3d7a2"
+      "size": 3533,
+      "sha256": "86b8dc57de9f5d79292e39539f7957262ae546d2fcdf4d046f7c1fb19d5fc58b"
     },
     {
       "path": "ui/src/api/client.ts",
-      "size": 3800,
-      "sha256": "3a799279a8323741d9eacd4ad63d45a6295cfb843faa3b9ee992617125841103"
+      "size": 5007,
+      "sha256": "51be8d743d4231da65ead6a1125a7c762e6d2e5183a3a93102bc875cbb68e349"
     },
     {
       "path": "ui/src/components/ArtifactExplorer.tsx",
@@ -777,8 +852,8 @@
     },
     {
       "path": "ui/src/features/ScenarioLab.tsx",
-      "size": 14715,
-      "sha256": "5ed0a16f59c7fe7ae7b690b8a03904a16050d0ab2e6c72a8b7e760c8caf2ab49"
+      "size": 17922,
+      "sha256": "563eaae09dd3ed98e8f60334cecc3d7d5b4c5376a54841a604565c22e1f43e88"
     },
     {
       "path": "ui/src/features/SchemaInspector.tsx",
@@ -791,19 +866,24 @@
       "sha256": "5b47e67282a59429cfeb1b5f2918f196bd26b8f10ec8018b9cf07d7df446b0ac"
     },
     {
+      "path": "ui/src/features/incidents/IncidentWorkbench.tsx",
+      "size": 17176,
+      "sha256": "80645b00bbc5a2d45b3a15f04b543100c8761c84c60512857ac27c4ad49d3af2"
+    },
+    {
       "path": "ui/src/main.tsx",
       "size": 214,
       "sha256": "b14f4140b9945a20e6f6534599646e1594e03571e3ff55ba0063e4968ce6ba47"
     },
     {
       "path": "ui/src/styles.css",
-      "size": 21665,
-      "sha256": "a1afd65313507c073de008eff72f39c74faf4b73a6882b65935d5543ad18e1dd"
+      "size": 27118,
+      "sha256": "f230d2abae70da0cb7a2727c2b2ae8fac66a77e2b2dbacbe1b4c5092c947f396"
     },
     {
       "path": "ui/src/types.ts",
-      "size": 9310,
-      "sha256": "cef6408bbd0718d58e5ba5244f014c0774a9d31c8c0d11eafa831f74eabdfc87"
+      "size": 14172,
+      "sha256": "2ddd5fbdaad531bfe3cc7d37a296b7cd3cf9d0129d76f28f34bd61fb30f09bf7"
     },
     {
       "path": "ui/src/vite-env.d.ts",

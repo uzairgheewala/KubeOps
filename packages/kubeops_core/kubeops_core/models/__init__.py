@@ -28,7 +28,27 @@ from .action import ScheduledMutation, StateMutation, TransitionRule
 from .base import SchemaModel
 from .composition import CompositionComponent, ScenarioComposition
 from .entity import EntityRef, OperationalEntity
-from .diagnosis import DiagnosisCertificate, EvidenceIntent, Hypothesis, ProbeIntent, Symptom
+from .diagnosis import (
+    CausalEdge,
+    CausalTemplate,
+    CollectorDefinition,
+    CollectorPlanStep,
+    CollectorRunResult,
+    DiagnosticCaseResult,
+    DiagnosticEvaluationReport,
+    DiagnosticExpectation,
+    DiagnosisCertificate,
+    EvidenceCollectionPlan,
+    EvidenceFact,
+    EvidenceIntent,
+    Hypothesis,
+    IncidentInvestigation,
+    IncidentTimelineEntry,
+    ProbeIntent,
+    ProbePlan,
+    ProbeRun,
+    Symptom,
+)
 from .invariant import InvariantDefinition, InvariantEvaluation, TemporalRequirement
 from .objective import OperationalObjective, OperationalProfile
 from .observation import Observation, ObservationProfile
